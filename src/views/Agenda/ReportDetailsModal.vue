@@ -155,9 +155,27 @@ export default {
 </script>
 
 <style>
+.report-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000; /* must be higher than .modal-overlay in EventDetailsModal.vue */
+}
+
 .report-modal-content {
-  max-width: 1200px;
-  min-width: 800px;
+  width: 90vw;
+  min-width: 1040px;
+  max-width: 1560px;
+  min-height: 90vh;
+  max-height: 98vh;
+  height: 98vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: row;
+  gap: 32px;
 }
 
 .report-modal-flex {
@@ -165,9 +183,23 @@ export default {
   flex-direction: row;
   gap: 32px;
 }
+
 .report-main {
-  flex: 2;
+  flex: 2 1 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
+
+.report-main textarea {
+  flex: 1 1 auto;
+  resize: none;
+  min-height: 200px;
+  max-height: 100%;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
 .report-side {
   flex: 1;
   background: #f7f7f7;
@@ -208,14 +240,16 @@ export default {
 .person-dropdown {
   font-size: 0.85em;
 }
+
 .person-row {
   display: grid;
-  grid-template-columns: 24px 1fr 40px 90px;
+  grid-template-columns: 24px 80px 60px 1fr; /* checkbox, family, first, company */
   align-items: center;
   gap: 4px;
   padding: 4px 2px;
   text-align: left;
 }
+
 .person-cell {
   text-align: left;
 }
@@ -227,8 +261,8 @@ export default {
 }
 
 .person-cell.lastname {
-  min-width: 80px;
-  max-width: 200px;
+  min-width: 60px;
+  max-width: 100px;
   font-weight: bold;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -236,20 +270,21 @@ export default {
 }
 
 .person-cell.firstname {
-  width: 40px;
-  max-width: 40px;
+  min-width: 40px;
+  max-width: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .person-cell.company {
-  min-width: 80px;
-  max-width: 120px;
+  min-width: 100px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .add-btn {
   margin-top: 6px;
   background: #1976d2;

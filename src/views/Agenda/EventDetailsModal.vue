@@ -1,7 +1,7 @@
 <!-- filepath: /share/sources/Contacto/cantactoWeb/src/views/Agenda/EventDetailsModal.vue -->
 <template>
     <div class="modal-overlay">
-        <div class="modal-content">
+        <div class="modal-content" :class="{ 'modal-blur': showReportModal }">
             <button class="modal-close" @click="$emit('close')">X</button>
             <div v-if="event && event.iconName" class="icon-container">
                 <img :src="getIconPath(event.iconName)" :alt="event.iconName" class="event-icon" />
@@ -28,9 +28,15 @@
                     </li>
                 </ul>
             </div>
-            <ReportDetailsModal v-if="showReportModal" :report="editedReport" :is-adding="isAddingReport"
-                @close="closeReportModal" @save="handleSaveReport" />
         </div>
+        <teleport to="body">
+            <ReportDetailsModal 
+                v-if="showReportModal" 
+                :report="editedReport" 
+                :is-adding="isAddingReport"
+                @close="closeReportModal" 
+                @save="handleSaveReport" />
+        </teleport>
     </div>
 </template>
 
@@ -104,7 +110,7 @@ export default {
 };
 </script>
 
-<style scoped>
+<style>
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -116,6 +122,12 @@ export default {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+}
+
+.modal-blur {
+  filter: blur(2px);
+  pointer-events: none;
+  user-select: none;
 }
 
 .modal-content {
