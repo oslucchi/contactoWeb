@@ -9,33 +9,58 @@
         <button @click="nextMonth">&gt;</button>
       </div>
       <div class="calendar-grid">
+        <!-- Days of week header -->
         <div class="calendar-day" v-for="day in daysOfWeek" :key="day">{{ day }}</div>
-        <div v-for="cell in calendarCells" :key="cell.date" class="calendar-cell">
+        <!-- Calendar cells -->
+        <div v-for="cell in calendarCells" :key="cell.date + '-' + cell.day" class="calendar-cell">
           <div class="cell-date">{{ cell.day }}</div>
-          <div v-for="event in cell.events" :key="event.idEvent" class="event-block"
-            @click="openEventModal(event)" style="cursor:pointer">
-            <div style="display: flex; align-items: center;">
-              <img v-if="event.iconName" :src="getIconPath(event.iconName)" :alt="event.iconName"
-                class="calendar-event-icon" />
-              <span class="event-duration">
-                {{ new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
-                {{ event.duration }} min
+          <div
+            v-for="event in cell.events"
+            :key="event.idEvent"
+            class="agenda-event"
+            :class="{ cancelled: event.cancelled }"
+            @click="openEventDetails(event)"
+            style="cursor:pointer"
+          >
+            <div class="event-info">
+              <span v-if="event.cancelled" class="cancelled-text">
+                {{ event.description }} (Annullato: {{ event.cancelReason }})
+              </span>
+              <span v-else>
+                {{ event.description }}
+              </span>
+              <span class="event-date">
+                {{ formatDateTime(event.date) }}
               </span>
             </div>
-            <div class="event-desc">{{ event.company.slice(0, 20) }}{{ event.company.length > 20 ? '…' : '' }}</div>
-            <div class="event-desc">{{ event.description.slice(0, 20) }}{{ event.description.length > 20 ? '…' : '' }}</div>
           </div>
         </div>
       </div>
     </div>
+    <button @click="openAddEventModal">Aggiungi Evento</button>
+
+    <!-- Modals -->
     <EventDetailsModal
       v-if="modalMode === 'event'"
       :event="selectedEvent"
       :reports="reports"
       :loading="loadingReports"
       @close="closeEventModal"
-      @add-report="addReport"
-      @edit-report="updateReport"
+      @edit-event="openEditEventModal"
+      @cancel-event="openCancelEventModal"
+    />
+    <EventEditModal
+      v-if="modalMode === 'edit'"
+      :event="editedEvent"
+      :is-editing="!!editedEvent.idEvent"
+      @close="closeEditEventModal"
+      @save="saveEvent"
+    />
+    <CancelEventModal
+      v-if="modalMode === 'cancel'"
+      :event="editedEvent"
+      @close="closeCancelEventModal"
+      @confirm="cancelEvent"
     />
   </div>
 </template>
@@ -44,24 +69,23 @@
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import EventDetailsModal from './EventDetailsModal.vue';
-import Report from '../../types/Report';
+import EventEditModal from './EventEditModal.vue';
+import EventCancelModal from './EventCancelModal.vue';
 import dayjs from 'dayjs';
 
 export default {
-  components: { EventDetailsModal },
+  components: { EventDetailsModal, EventEditModal, EventCancelModal },
   data() {
     return {
       events: [],
       currentMonth: new Date().getMonth(),
       currentYear: new Date().getFullYear(),
       daysOfWeek: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+      modalMode: null,
+      editedEvent: null,
       selectedEvent: null,
       reports: [],
       loadingReports: false,
-      selectedReport: null,
-      editedReport: null,
-      isAddingReport: false,
-      modalMode: null, // 'event'
     };
   },
   computed: {
@@ -78,19 +102,34 @@ export default {
       }
       for (let d = 1; d <= lastDay.getDate(); d++) {
         const cellDate = new Date(this.currentYear, this.currentMonth, d);
-        const cellDateStr = cellDate.toISOString().slice(0, 10);
-        const events = this.events.filter(ev => ev.date && ev.date.startsWith(cellDateStr));
+        const cellDateStr = dayjs(cellDate).format('YYYY-MM-DD');
+        const events = this.events.filter(ev => {
+          if (!ev.date) return false;
+          // ev.date might be a string or Date
+          const eventDateStr = dayjs(ev.date).format('YYYY-MM-DD');
+          if (eventDateStr === cellDateStr) {
+            console.log(`found an event date ${eventDateStr} coherent with the cell date ${cellDateStr}`);
+            return true;
+          }
+          return false;
+        });
         cells.push({ date: cellDateStr, day: d, events });
       }
       return cells;
     }
   },
+  mounted() {
+    this.fetchEvents();
+  },
   methods: {
     async fetchEvents() {
       try {
         const res = await axios.post(
-          `${API_BASE_URL}/agenda/schedule`,
-          { idOwner: 1, numOfFutureItems: 0 }
+          `${API_BASE_URL}/agenda/schedule`, 
+          {
+            idOwner: 1,
+            numOfFutureItems: 0
+          }
         );
         this.events = res.data;
       } catch (error) {
@@ -99,6 +138,29 @@ export default {
             error.message || error);
         console.error(errMsg);
         alert(errMsg);
+      }
+    },
+    async fetchReportsForEvent(event) {
+      if (!event || !event.idCompany) {
+        this.reports = [];
+        return;
+      }
+      this.loadingReports = true;
+      try {
+        const res = await axios.post(
+          `${API_BASE_URL}/agenda/getReportsByEvent`,
+          { idEvent: event.idEvent }
+        );
+        this.reports = res.data;
+      } catch (error) {
+        this.reports = [];
+        let errMsg = "Errore nel recupero dei report: " +
+          ((error.response && error.response.data && error.response.data.message) ||
+            error.message || error);
+        console.error(errMsg);
+        alert(errMsg);
+      } finally {
+        this.loadingReports = false;
       }
     },
     prevMonth() {
@@ -119,23 +181,59 @@ export default {
       }
       this.fetchEvents();
     },
-    async openEventModal(event) {
+    formatDateTime(date) {
+      if (!date) return '';
+      return dayjs(date).format('YY/MM/DD HH:mm');
+    },
+    openAddEventModal() {
+      this.editedEvent = { owner: 1 };
+      this.modalMode = 'edit';
+    },
+    openEditEventModal(event) {
+      this.editedEvent = { ...event };
+      this.modalMode = 'edit';
+    },
+    openEventDetails(event) {
       this.selectedEvent = event;
       this.modalMode = 'event';
-      this.reports = [];
-      if (event.idCompany) {
-        this.loadingReports = true;
-        try {
-          const res = await axios.post(`${API_BASE_URL}/agenda/getReports`, {
-            idCompany: event.idCompany
-          });
-          this.reports = res.data;
-        } catch (error) {
-          alert("Errore nel recupero dei report: " + (error.response && error.response.data && error.response.data.message || error.message || error));
-        } finally {
-          this.loadingReports = false;
-        }
+      this.fetchReportsForEvent(event);
+    },
+    closeEventModal() {
+      this.selectedEvent = null;
+      this.modalMode = null;
+    },
+    closeEditEventModal() {
+      this.editedEvent = null;
+      this.modalMode = null;
+    },
+    saveEvent(event) {
+      if (event.idEvent) {
+        const idx = this.events.findIndex(e => e.idEvent === event.idEvent);
+        if (idx !== -1) this.$set(this.events, idx, event);
+      } else {
+        event.idEvent = Date.now();
+        this.events.push(event);
       }
+      this.closeEditEventModal();
+    },
+    openCancelEventModal(event) {
+      this.editedEvent = { ...event };
+      this.modalMode = 'cancel';
+    },
+    closeCancelEventModal() {
+      this.editedEvent = null;
+      this.modalMode = null;
+    },
+    cancelEvent({ event, reason }) {
+      const idx = this.events.findIndex(e => e.idEvent === event.idEvent);
+      if (idx !== -1) {
+        this.$set(this.events, idx, {
+          ...event,
+          cancelled: true,
+          cancelReason: reason,
+        });
+      }
+      this.closeCancelEventModal();
     },
     getIconPath(iconName) {
       try {
@@ -144,57 +242,13 @@ export default {
         return '';
       }
     },
-    closeEventModal() {
-      this.modalMode = null;
-      this.selectedEvent = null;
-      this.reports = [];
-    },
-
-    async addReport(report) {
-        const formattedReport = {
-            ...report,
-            date: dayjs(report.date).valueOf()
-        };
-        console.log("Updating report:", formattedReport);
-        try {
-          const res = await axios.post(
-                            `${API_BASE_URL}/reports/add`, 
-                            {
-                                report: formattedReport
-                            }
-                        );
-          this.reports.push(res.data);
-        } catch (error) {
-            alert("Errore nell'inserimento report: " + (error.response && error.response.data && error.response.data.message || error.message || error));
-        }
-    },
-    async updateReport(report) {
-        const formattedReport = {
-            ...report,
-            date: dayjs(report.date).valueOf()
-        };
-        console.log("Updating report:", formattedReport);
-        try {
-            const res = await axios.post(
-                            `${API_BASE_URL}/reports/update`, 
-                            {
-                                report: formattedReport
-                            }
-                        );
-            const idx = this.reports.findIndex(r => r.idReport === formattedReport.idReport);
-            if (idx !== -1) this.$set(this.reports, idx, formattedReport);  
-        } catch (error) {
-            alert("Errore nell'inserimento report: " + (error.response && error.response.data && error.response.data.message || error.message || error));
-        }
-    },
-  },
-  created() {
-    this.fetchEvents();
   }
+  
 };
 </script>
 
-<style scoped>
+<style>
+
 .calendar {
   max-width: 700px;
   margin: 0 auto;
@@ -223,34 +277,33 @@ export default {
   position: relative;
   background: #fff;
 }
-.calendar-event-icon {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-  margin-right: 4px;
-  vertical-align: middle;
+.agenda-list {
+  margin: 24px 0;
 }
-.cell-date {
-  font-size: 0.9em;
-  font-weight: bold;
-  margin-bottom: 2px;
+.agenda-event {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
 }
-.event-block {
-  background: #e3f2fd;
-  border-radius: 4px;
-  margin-bottom: 2px;
-  padding: 2px 4px;
-  font-size: 0.85em;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.event-info {
+  flex: 1;
+  cursor: pointer;
 }
-.event-duration {
-  color: #1976d2;
-  font-weight: bold;
-  font-size: 0.8em;
+.event-actions button {
+  margin-left: 8px;
 }
-.event-desc {
-  color: #333;
+.cancelled-text {
+  color: red;
+  text-decoration: line-through;
+}
+.event-date {
+  margin-left: 16px;
+  color: #888;
+  font-size: 0.95em;
+}
+.cancelled {
+  opacity: 0.7;
 }
 </style>
