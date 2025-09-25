@@ -48,6 +48,7 @@
       @close="closeEventModal"
       @edit-event="openEditEventModal"
       @cancel-event="openCancelEventModal"
+      @edit-report="openEditReportModal"
     />
     <EventEditModal
       v-if="modalMode === 'edit'"
@@ -62,6 +63,11 @@
       @close="closeCancelEventModal"
       @confirm="cancelEvent"
     />
+    <ReportDetailsModal
+      v-if="showReportModal"
+      :report="selectedReport"
+      @close="closeReportModal"
+    />
   </div>
 </template>
 
@@ -70,11 +76,12 @@ import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import EventDetailsModal from './EventDetailsModal.vue';
 import EventEditModal from './EventEditModal.vue';
+import ReportDetailsModal from './ReportDetailsModal.vue';
 import EventCancelModal from './EventCancelModal.vue';
 import dayjs from 'dayjs';
 
 export default {
-  components: { EventDetailsModal, EventEditModal, EventCancelModal },
+  components: { EventDetailsModal, EventEditModal, EventCancelModal, ReportDetailsModal },
   data() {
     return {
       events: [],
@@ -86,6 +93,8 @@ export default {
       selectedEvent: null,
       reports: [],
       loadingReports: false,
+      selectedReport: null,
+      showReportModal: false,
     };
   },
   computed: {
@@ -241,6 +250,14 @@ export default {
       } catch (e) {
         return '';
       }
+    },
+    openEditReportModal(report) {
+      this.selectedReport = report;
+      this.showReportModal = true;
+    },
+    closeReportModal() {
+      this.selectedReport = null;
+      this.showReportModal = false;
     },
   }
   

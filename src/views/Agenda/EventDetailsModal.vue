@@ -2,40 +2,69 @@
 <template>
   <div class="modal-overlay">
     <div class="modal-content">
-      <button class="modal-close" @click="$emit('close')">X</button>
+      <button class="modal-close" @click="closeEventModal">X</button>
       <div v-if="event">
-        <h3>
-          <span v-if="event.cancelled" style="color: red; text-decoration: line-through;">
-            {{ event.description }}
-          </span>
-          <span v-else>
-            {{ event.description }}
-          </span>
-        </h3>
-        <div v-if="event.cancelled" style="color: red; font-size: 0.95em;">
-          (Annullato: {{ event.cancelReason }})
+        <div class="event-header">
+          <div class="event-desc-icon">
+            <span
+              v-if="event.cancelled"
+              class="event-description cancelled"
+            >
+              {{ event.description }}
+            </span>
+            <span v-else class="event-description">
+              {{ event.description }}
+            </span>
+            <img
+              v-if="event.iconName"
+              :src="getIconPath(event.iconName)"
+              :alt="event.iconName"
+              class="event-icon"
+            />
+          </div>
+          <div v-if="event.cancelled" class="cancel-reason">
+            (Annullato: {{ event.cancelReason }})
+          </div>
         </div>
-        <p><strong>Data:</strong> {{ formatDateTime(event.date) }}</p>
-        <p><strong>Durata:</strong> {{ event.duration }} min</p>
-        <p><strong>Azienda:</strong> {{ event.company }}</p>
-        <p><strong>Categoria:</strong> {{ event.category }}</p>
-        <!-- Example usage of SearchComboBox for company/category (uncomment if needed) -->
-        <!--
-        <SearchComboBox
-          label="Azienda"
-          :table="'companies'"
-          :searchColumns="['name']"
-          :displayColumns="['name']"
-          v-model="selectedCompany"
-        />
-        <SearchComboBox
-          label="Categoria"
-          :table="'categories'"
-          :searchColumns="['name']"
-          :displayColumns="['name']"
-          v-model="selectedCategory"
-        />
-        -->
+        <div class="event-row">
+          <span><strong>Data:</strong> {{ formatDate(event.date) }}</span>
+          <span><strong>Durata:</strong> {{ event.duration }} min</span>
+        </div>
+        <div class="event-row">
+          <span><strong>Azienda:</strong> {{ event.company }}</span>
+        </div>
+        <div class="event-row">
+          <span><strong>Categoria:</strong> {{ event.category }}</span>
+        </div>
+        <div class="participants-section">
+          <div class="participants-list">
+            <span class="participants-label">Partecipanti:</span>
+            <span v-if="participants.length === 0" class="participants-empty">Nessuno</span>
+            <span v-else>
+              <span
+                v-for="(p, idx) in participants"
+                :key="p.idPerson"
+                class="participant"
+              >
+                {{ p.familyName }} {{ p.firstName }}<span v-if="p.company"> ({{ p.company }})</span><span v-if="idx < participants.length - 1">, </span>
+              </span>
+            </span>
+            <button class="participants-edit-btn" @click="showParticipantsEdit = true">Modifica</button>
+          </div>
+          <SearchComboBox
+            v-if="showParticipantsEdit"
+            modal
+            label="Gestione partecipanti"
+            :table="'Persons'"
+            :searchColumns="['familyName','firstName','company']"
+            :displayColumns="['familyName','firstName','company']"
+            :currentItems="participants"
+            :addApi="addApi"
+            :deleteApi="deleteApi"
+            @update:currentItems="participants = $event"
+            @close="showParticipantsEdit = false"
+          />
+        </div>
         <div style="margin-top: 16px;">
           <button @click="$emit('edit-event', event)">Modifica</button>
           <button @click="$emit('cancel-event', event)" v-if="!event.cancelled">Annulla</button>
@@ -62,26 +91,67 @@
 
 <script>
 import dayjs from 'dayjs';
-// import SearchComboBox from './SearchComboBox.vue'; // Uncomment if using
+import SearchComboBox from '@/components/SearchComboBox.vue';
 
 export default {
-  // components: { SearchComboBox }, // Uncomment if using
+  components: { SearchComboBox },
   props: {
     event: Object,
     reports: Array,
     loading: Boolean
   },
+  computed: {
+    addApi() {
+      if (!this.event || !this.event.idEvent) return '';
+      return `${process.env.VUE_APP_API_BASE_URL || API_BASE_URL}/events/manageParticipant2?action=add&idEvent=${this.event.idEvent}&idPerson=`;
+    },
+    deleteApi() {
+      if (!this.event || !this.event.idEvent) return '';
+      return `${process.env.VUE_APP_API_BASE_URL || API_BASE_URL}/events/manageParticipant2?action=del&idEvent=${this.event.idEvent}&idPerson=`;
+    }
+  },
   data() {
     return {
-      // selectedCompany: null, // Example for SearchComboBox
-      // selectedCategory: null
+      participants: this.event && this.event.participants ? this.event.participants : [],
+      showParticipantsEdit: false,
     };
+  },
+  watch: {
+    event: {
+      handler(newVal) {
+        this.participants = newVal && newVal.participants ? newVal.participants : [];
+      },
+      immediate: true
+    }
   },
   methods: {
     formatDateTime(date) {
       if (!date) return '';
       return dayjs(date).format('YY/MM/DD HH:mm');
-    }
+    },
+    formatDate(date) {
+      if (!date) return '';
+      return dayjs(date).format('YYYY-MM-DD');
+    },
+    getIconPath(iconName) {
+      try {
+        return require(`@/assets/icons/${iconName}.png`);
+      } catch (e) {
+        return '';
+      }
+    },
+    onParticipantSelected(person) {
+      // Add or remove logic here
+      if (!this.participants.find(p => p.idPerson === person.idPerson)) {
+        this.participants.push(person);
+      }
+      this.showParticipantsEdit = false;
+      // Optionally emit an event or call an API to update participants
+    },
+    closeEventModal() {
+      this.showParticipantsEdit = false; // Reset when closing
+      this.$emit('close');
+    },
   }
 };
 </script>
@@ -117,6 +187,76 @@ export default {
   font-size: 1.3em;
   cursor: pointer;
 }
+.event-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.event-desc-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.event-description {
+  font-size: 1.3em;
+  font-weight: 500;
+  text-align: center;
+}
+.event-description.cancelled {
+  color: red;
+  text-decoration: line-through;
+}
+.event-icon {
+  width: 32px;
+  height: 32px;
+}
+.cancel-reason {
+  color: red;
+  font-size: 0.95em;
+  margin-top: 4px;
+}
+.event-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+  font-size: 1em;
+}
+.right-align {
+  justify-content: flex-end;
+  text-align: right;
+}
+.participants-section {
+  margin: 8px 0 0 0;
+  font-size: 0.92em;
+}
+.participants-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.participants-label {
+  font-weight: 500;
+  margin-right: 4px;
+}
+.participants-empty {
+  color: #888;
+}
+.participant {
+  font-size: 0.95em;
+}
+.participants-edit-btn {
+  margin-left: 12px;
+  font-size: 0.9em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #1976d2;
+  background: #f5faff;
+  color: #1976d2;
+  cursor: pointer;
+}
 .reports-header {
   display: flex;
   align-items: left;
@@ -135,7 +275,6 @@ export default {
   cursor: pointer;
   padding: 0;
 }
-
 .reports-list {
   text-align: left;
   padding-left: 0;
