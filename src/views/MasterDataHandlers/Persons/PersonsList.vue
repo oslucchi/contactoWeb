@@ -53,7 +53,7 @@ export default {
     return { persons: [] };
   },
   created() {
-      console.log('API_BASE_URL:', API_BASE_URL + '/persons');
+    console.log('API_BASE_URL:', API_BASE_URL + '/persons');
 
     axios.get(`${API_BASE_URL}/persons`).then(res => {
       this.persons = res.data;

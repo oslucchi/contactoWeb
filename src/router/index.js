@@ -13,6 +13,8 @@ import OrganizationList from '../views/MasterDataHandlers/Organization/Organizat
 import EmployeesForm from '../views/MasterDataHandlers/Employees/EmployeesForm.vue';
 import EmployeesList from '../views/MasterDataHandlers/Employees/EmployeesList.vue';
 import AgendaCalendar from '@/views/Agenda/AgendaCalendar.vue';
+import ProjectsList from '@/views/MasterDataHandlers/Projects/ProjectsList.vue';
+import ProjectsForm from '@/views/MasterDataHandlers/Projects/ProjectsForm.vue';
 
 Vue.use(VueRouter);
 
@@ -37,6 +39,10 @@ const routes = [
   { path: '/employees', component: EmployeesList },
   { path: '/employees/new', component: EmployeesForm },
   { path: '/employees/:id', component: EmployeesForm, props: true },
+
+  { path: '/projects', component: ProjectsList },
+  { path: '/projects/new', component: ProjectsForm },
+  { path: '/projects/:id', component: ProjectsForm, props: true },
 
   { path: '/agenda/schedule', component: AgendaCalendar, props: true },
 ];
