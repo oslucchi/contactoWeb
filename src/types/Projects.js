@@ -13,5 +13,5 @@ export default class Report {
     this.lustUpdate = lustUpdate;
     this.address = address;
     this.company = company;
-}
+  }
 }
