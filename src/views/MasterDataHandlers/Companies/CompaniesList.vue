@@ -17,14 +17,18 @@
       <table class="companies-table" @click.stop>
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Segment</th>
-            <th>Branches</th>
+            <th v-for="col in columns" :key="col.key" :class="col.key" @click.stop="col.sortable && handleSort(col.key)">
+              {{ col.label }}
+              <span v-if="col.sortable && sortColumn === col.key" class="sort-arrow">
+                <span v-if="sortDirection === 'asc'">&#8595;</span>
+                <span v-else-if="sortDirection === 'desc'">&#8593;</span>
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="(company, rowIdx) in companies"
+            v-for="(company, rowIdx) in sortedCompanies"
             :key="company.idCompany"
             :class="{ 'row-selected': selectedRow === rowIdx }"
           >
@@ -106,6 +110,13 @@ export default {
       selectedCompany: null,
       showBranchModal: false,
       selectedBranch: null,
+      sortColumn: null,      // e.g. 'description', 'segment', 'branches'
+      sortDirection: null,   // 'asc', 'desc', or null (natural)
+      columns: [
+        { key: 'description', label: 'Name', sortable: true },
+        { key: 'segment', label: 'Segment', sortable: true },
+        { key: 'branches', label: 'Branches', sortable: false },
+      ],
     };
   },
   computed: {
@@ -114,6 +125,25 @@ export default {
       },
       branchTypes() {
         return LookupData.branchTypes;
+      },
+      sortedCompanies() {
+        if (!this.sortColumn || !this.sortDirection) return this.companies;
+        let sorted = [...this.companies];
+        sorted.sort((a, b) => {
+          let valA = a[this.sortColumn];
+          let valB = b[this.sortColumn];
+          // For branches, sort by first branch name1
+          if (this.sortColumn === 'branches') {
+            valA = (a.branches && a.branches[0] && a.branches[0].name1) ? a.branches[0].name1 : '';
+            valB = (b.branches && b.branches[0] && b.branches[0].name1) ? b.branches[0].name1 : '';
+          }
+          if (valA == null) valA = '';
+          if (valB == null) valB = '';
+          if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
+          if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+        return sorted;
       }
   },
   created() {
@@ -189,12 +219,38 @@ export default {
     getSegmentId(segmentDescription) {
       const seg = this.segments.find(s => s.description === segmentDescription);
       return seg ? seg.idSegment : '';
-    }
+    },
+    handleSort(column) {
+      if (this.sortColumn !== column) {
+        this.sortColumn = column;
+        this.sortDirection = 'asc';
+      } else if (this.sortDirection === 'asc') {
+        this.sortDirection = 'desc';
+      } else if (this.sortDirection === 'desc') {
+        this.sortColumn = null;
+        this.sortDirection = null;
+      } else {
+        this.sortDirection = 'asc';
+      }
+    },
   }
 }
 </script>
 
 <style scoped>
+.sort-arrow {
+  position: absolute;
+  right: 6px;
+  bottom: 2px;
+  font-size: 1em;
+  color: #222;
+  pointer-events: none;
+}
+.companies-table th {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
 .companies-bg {
   min-height: 100vh;
   width: 100vw;
