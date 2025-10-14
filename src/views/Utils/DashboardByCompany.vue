@@ -9,7 +9,7 @@
                     element="Company" 
                     :user="userId"
                     :filter="{ searchFor: '' }"
-                    :featuresEnabled="[false, false, false, true, false]"
+                    :featuresEnabled="[false, false, false, true, true]"
                     @rowSelected="onCompanySelected" />
             </section>
             <section class="dashboard-block branches-block">

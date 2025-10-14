@@ -1,16 +1,15 @@
-<!-- filepath: /share/sources/Contacto/cantactoWeb/src/components/GenericDataViewer.vue -->
 <template>
     <div class="masterdata-bg" @click="deselectRow">
         <div class="masterdata-content">
             <h2>{{ tableConfig.table }}</h2>
             <div class="action-icons">
                 <button v-if="featuresEnabled[0]"
-                        :disabled="selectedRow === null" 
+                        :disabled="selectedRowId === null" 
                         @click.stop="openEditModal">
                     <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
                 </button>
                 <button v-if="featuresEnabled[1]" 
-                        :disabled="selectedRow === null" 
+                        :disabled="selectedRowId === null" 
                         @click.stop="deleteSelectedRow">
                     <img src="@/assets/icons/recycle-bin.png" alt="Delete" class="icon" />
                 </button>
@@ -51,19 +50,22 @@
                         <colgroup>
                             <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
                         </colgroup>
-                        <tbody>
-                            <tr v-for="(item, rowIdx) in sortedItems" :key="item.id || rowIdx"
-                                :class="{ 'row-selected': selectedRow === rowIdx }">
+                        <tbody :key="tableRenderKey">
+                            <tr v-for="(item, rowIdx) in sortedItems" 
+                                :key="getRowIdFromData(item, rowIdx)"
+                                :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }"
+                                @click="selectRow(item, rowIdx)"
+                            >
                                 <td v-for="col in visibleColumns" :key="col.idColConfigDetail" :class="col.colName"
-                                    @click="selectCell(rowIdx, col.colName)">
-                                    <template v-if="selectedRow === rowIdx && selectedCell === col.colName">
+                                    @click.stop="selectCell(item, rowIdx, col.colName)">
+                                    <template v-if="selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4]">
                                         <input class="table-input"
                                             @change="saveItem(item)"
                                             v-model="item[col.colName]" 
                                             :type="getInputType(item[col.colName])" 
                                             :placeholder="col.showName" />
-                                    </template>
-                                    <template v-else>
+                                    </template> 
+                                   <template v-else>
                                         {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
                                     </template>
                                 </td>
@@ -91,7 +93,6 @@ import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import ColConfigHeader from '@/types/ColConfigHeader';
 
-// Dynamically import the class for the master data type
 function getClassByName(name) {
     return require(`@/types/${name}`).default;
 }
@@ -108,12 +109,13 @@ export default {
         return {
             tableConfig: null,
             items: [],
-            selectedRow: null,
+            selectedRowId: null,
             selectedCell: null,
             showEditModal: false,
             selectedItem: null,
             sortColumn: null,
             sortDirection: null,
+            tableRenderKey: 0,
         };
     },
     computed: {
@@ -134,10 +136,17 @@ export default {
                 return 0;
             });
             return sorted;
-        }
+        },
+        itemIdField() {
+            if (!this.tableConfig || !this.tableConfig.columns) return null;
+            let idCol = this.tableConfig.columns.find(col => col.colName && col.colName.toLowerCase().startsWith('id'));
+            if (!idCol) {
+                idCol = this.tableConfig.columns.find(col => col.position === 0);
+            }
+            return idCol ? idCol.colName : null;
+        },
     },
     async created() {
-        // 1. Get column config
         const configRes = await axios.get(`${API_BASE_URL}/utility/browserData`, {
             params: {
                 page: this.page,
@@ -147,33 +156,36 @@ export default {
         });
         this.tableConfig = new ColConfigHeader(configRes.data);
 
-        // Debug: log columns and first item
-        console.log(`Query data on: ${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, { params: this.filter });
-        // 2. Get master data
         const ClassType = getClassByName(this.tableConfig.cliClassName);
         const dataRes = await axios.get(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, { params: this.filter });
-        this.items = dataRes.data.map(obj => obj instanceof ClassType ? obj : new ClassType(obj));
-
-        // Debug: log first item
-        console.log('First item:', this.items[0]);
-        this.tableConfig = new ColConfigHeader(configRes.data);
-        await this.reloadData();
+        this.items = dataRes.data.map(obj => {
+            const item = obj instanceof ClassType ? obj : new ClassType(obj);
+            this.tableConfig.columns.forEach(col => {
+                if (!(col.colName in item)) item[col.colName] = '';
+            });
+            return item;
+        });
     },
     methods: {
-        async reloadData() {
-            if (!this.tableConfig) return;
-            const ClassType = getClassByName(this.tableConfig.cliClassName);
-            const dataRes = await axios.get(
-                `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`,
-                { params: this.filter }
-            );
-            this.items = dataRes.data.map(obj => {
-                const item = obj instanceof ClassType ? obj : new ClassType(obj);
-                this.visibleColumns.forEach(col => {
-                    if (!(col.colName in item)) item[col.colName] = '';
-                });
-                return item;
-            });
+        getRowIdFromData(item, rowIdx) {
+            if (!this.tableConfig || !this.tableConfig.columns) return rowIdx;
+            const idValue = item[this.itemIdField];
+            return idValue || rowIdx;
+        },
+        selectRow(item, rowIdx) {
+            this.selectedRowId = this.getRowIdFromData(item, rowIdx);
+            this.selectedCell = null;
+            this.selectedItem = item;
+            this.tableRenderKey++;
+        },
+        selectCell(item, rowIdx, colName) {
+            this.selectedRowId = this.getRowIdFromData(item, rowIdx);
+            this.selectedCell = colName;
+            this.selectedItem = item;
+            this.tableRenderKey++;
+            if (this.tableConfig && this.tableConfig.element.toLowerCase() === 'company') {
+                this.$emit('rowSelected', this.selectedItem);
+            }
         },
         getInputType(val) {
             if (typeof val === 'number') return 'number';
@@ -181,33 +193,22 @@ export default {
             return 'text';
         },
         saveItem(item) {
-            axios.put(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${item.id}`, item)
+            axios.put(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${item[this.itemIdField]}`, item)
                 .catch(() => alert('Error saving item'));
         },
-        selectCell(rowIdx, colName) {
-            console.log(`Selected cell: ${rowIdx}, ${colName}. Element: ${this.tableConfig.element.toLowerCase()}`);
-            console.log('Clicked cell value:', this.items[rowIdx][colName]);
-
-            this.selectedRow = rowIdx;
-            this.selectedCell = colName;
-            this.selectedItem = this.items[rowIdx];
-            if (this.tableConfig && this.tableConfig.element.toLowerCase() === 'company') {
-                this.$emit('rowSelected', this.selectedItem);
-            }
-        },
         openEditModal() {
-            if (this.selectedRow !== null) {
-                this.selectedItem = this.items[this.selectedRow];
+            if (this.selectedRowId !== null) {
+                this.selectedItem = this.items.find(item => this.getRowIdFromData(item) === this.selectedRowId);
                 this.showEditModal = true;
             }
         },
         deleteSelectedRow() {
-            if (this.selectedRow !== null) {
-                const item = this.items[this.selectedRow];
+            if (this.selectedRowId !== null) {
+                const item = this.items.find(item => this.getRowIdFromData(item) === this.selectedRowId);
                 if (confirm(`Delete ${this.tableConfig.element} ${item[this.visibleColumns[0].colName]}?`)) {
-                    axios.delete(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${item.id}`).then(() => {
-                        this.items.splice(this.selectedRow, 1);
-                        this.selectedRow = null;
+                    axios.delete(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${item[this.itemIdField]}`).then(() => {
+                        this.items = this.items.filter(i => this.getRowIdFromData(i) !== this.selectedRowId);
+                        this.selectedRowId = null;
                         this.selectedCell = null;
                         this.selectedItem = null;
                     });
@@ -219,7 +220,7 @@ export default {
             const newItem = new ClassType();
             const res = await axios.post(`${API_BASE_URL}/${this.tableConfig.restModuleName}/create`, newItem);
             this.items.push(res.data);
-            this.selectedRow = this.items.length - 1;
+            this.selectedRowId = this.getRowIdFromData(res.data, this.items.length - 1);
             this.selectedCell = this.visibleColumns[0].colName;
             this.selectedItem = res.data;
         },
@@ -231,7 +232,7 @@ export default {
             }
         },
         deselectRow() {
-            this.selectedRow = null;
+            this.selectedRowId = null;
             this.selectedCell = null;
             this.selectedItem = null;
         },
@@ -255,22 +256,18 @@ export default {
             const container = event.target.closest('.masterdata-table-container');
             const containerWidth = container.offsetWidth;
 
-            // Store initial widths
             const initialWidths = this.visibleColumns.map(c => c.width || 120);
 
             const onMouseMove = (e) => {
                 const delta = e.pageX - startX;
                 let newWidth = Math.max(40, startWidth + delta);
 
-                // Calculate remaining width for other columns
                 const otherTotal = initialWidths.reduce((sum, w, idx) => sum + (this.visibleColumns[idx] === col ? 0 : w), 0);
                 const remainingWidth = containerWidth - newWidth;
                 const scale = remainingWidth / otherTotal;
 
-                // Set new width for resized column
                 col.width = newWidth;
 
-                // Proportionally adjust other columns
                 this.visibleColumns.forEach((c, idx) => {
                     if (c !== col) {
                         c.width = Math.max(40, Math.round(initialWidths[idx] * scale));
@@ -282,7 +279,6 @@ export default {
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
 
-                // Save all columns' configs
                 this.visibleColumns.forEach(c => this.saveColConfig({ ...c }));
             };
 
@@ -298,14 +294,29 @@ export default {
             } catch (e) {
                 alert('Error saving column configuration');
             }
-        }
+        },
+        async reloadData() {
+            if (!this.tableConfig) return;
+            const ClassType = getClassByName(this.tableConfig.cliClassName);
+            const dataRes = await axios.get(
+                `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`,
+                { params: this.filter }
+            );
+            this.items = dataRes.data.map(obj => {
+                const item = obj instanceof ClassType ? obj : new ClassType(obj);
+                this.tableConfig.columns.forEach(col => {
+                    if (!(col.colName in item)) item[col.colName] = '';
+                });
+                return item;
+            });
+        },
     },
     watch: {
         filter: {
-        handler(newFilter, oldFilter) {
-            this.reloadData();
-        },
-        deep: true
+            handler(newFilter, oldFilter) {
+                this.reloadData();
+            },
+            deep: true
         }
     }
 }
@@ -328,7 +339,7 @@ export default {
     padding-bottom: 24px;
     display: flex;
     flex-direction: column;
-    height: 100%; /* Fill parent section */
+    height: 100%;
     min-height: 0;
 }
 
@@ -426,7 +437,7 @@ export default {
     background: #e6f0ff;
 }
 
-.row-selected > td {
+tr.row-selected td {
     background: #e0f7fa !important;
 }
 
