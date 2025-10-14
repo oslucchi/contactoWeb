@@ -21,15 +21,16 @@
                     :featuresEnabled="[false, false, false, false, false]"
                 />
             </section>
+            <section class="dashboard-block persons-block">
+                <GenericDataViewer
+                    page="dashboard"
+                    element="Person"
+                    :user="userId"
+                    :filter="companyFilter"
+                    :featuresEnabled="[false, false, false, false, false]"
+                />
+            </section>
     <!--
-      <section class="dashboard-block persons-block">
-        <GenericDataViewer
-          page="dashboard"
-          element="person"
-          :user="userId"
-          :filter="companyFilter"
-        />
-      </section>
       <section class="dashboard-block projects-block">
         <GenericDataViewer
           page="dashboard"

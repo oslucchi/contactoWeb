@@ -23,37 +23,55 @@
                     <img src="@/assets/icons/search.png" alt="Search" class="icon" />
                 </button>
             </div>
-            <table class="masterdata-table" @click.stop>
-                <thead>
-                    <tr>
-                        <th v-for="col in visibleColumns" :key="col.idColConfigDetail"
-                            :style="{ width: col.width + 'px' }" :class="col.colName"
-                            @click.stop="col.useForSort && handleSort(col.colName)">
-                            {{ col.showName }}
-                            <span v-if="col.useForSort && sortColumn === col.colName" class="sort-arrow">
-                                <span v-if="sortDirection === 'asc'">&#8595;</span>
-                                <span v-else-if="sortDirection === 'desc'">&#8593;</span>
-                            </span>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="(item, rowIdx) in sortedItems" :key="item.id || rowIdx"
-                        :class="{ 'row-selected': selectedRow === rowIdx }">
-                        <td v-for="col in visibleColumns" :key="col.idColConfigDetail" :class="col.colName"
-                            @click="selectCell(rowIdx, col.colName)">
-                            <template v-if="selectedRow === rowIdx && selectedCell === col.colName">
-                                <input v-model="item[col.colName]" @change="saveItem(item)"
-                                    :type="getInputType(item[col.colName])" class="table-input"
-                                    :style="{ width: col.width + 'px' }" />
-                            </template>
-                            <template v-else>
-                                {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
-                            </template>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="masterdata-table-container">
+                <!-- Table for thead only -->
+                <table class="masterdata-table masterdata-table-head">
+                    <colgroup>
+                        <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th v-for="col in visibleColumns" :key="col.idColConfigDetail"
+                                :class="col.colName"
+                                @click.stop="col.useForSort && handleSort(col.colName)">
+                                {{ col.showName }}
+                                <span v-if="col.useForSort && sortColumn === col.colName" class="sort-arrow">
+                                    <span v-if="sortDirection === 'asc'">&#8595;</span>
+                                    <span v-else-if="sortDirection === 'desc'">&#8593;</span>
+                                </span>
+                                <!-- Resizer -->
+                                <span class="col-resizer" @mousedown="startResize($event, col)"></span>
+                            </th>
+                        </tr>
+                    </thead>
+                </table>
+                <!-- Scrollable tbody in a separate table -->
+                <div class="masterdata-tbody-scroll">
+                    <table class="masterdata-table masterdata-table-body">
+                        <colgroup>
+                            <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
+                        </colgroup>
+                        <tbody>
+                            <tr v-for="(item, rowIdx) in sortedItems" :key="item.id || rowIdx"
+                                :class="{ 'row-selected': selectedRow === rowIdx }">
+                                <td v-for="col in visibleColumns" :key="col.idColConfigDetail" :class="col.colName"
+                                    @click="selectCell(rowIdx, col.colName)">
+                                    <template v-if="selectedRow === rowIdx && selectedCell === col.colName">
+                                        <input class="table-input"
+                                            @change="saveItem(item)"
+                                            v-model="item[col.colName]" 
+                                            :type="getInputType(item[col.colName])" 
+                                            :placeholder="col.showName" />
+                                    </template>
+                                    <template v-else>
+                                        {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
+                                    </template>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
             <!-- Edit Modal Placeholder -->
             <div v-if="showEditModal" class="modal-overlay" @click.stop>
                 <div class="modal-content">
@@ -149,7 +167,13 @@ export default {
                 `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`,
                 { params: this.filter }
             );
-            this.items = dataRes.data.map(obj => obj instanceof ClassType ? obj : new ClassType(obj));
+            this.items = dataRes.data.map(obj => {
+                const item = obj instanceof ClassType ? obj : new ClassType(obj);
+                this.visibleColumns.forEach(col => {
+                    if (!(col.colName in item)) item[col.colName] = '';
+                });
+                return item;
+            });
         },
         getInputType(val) {
             if (typeof val === 'number') return 'number';
@@ -162,6 +186,8 @@ export default {
         },
         selectCell(rowIdx, colName) {
             console.log(`Selected cell: ${rowIdx}, ${colName}. Element: ${this.tableConfig.element.toLowerCase()}`);
+            console.log('Clicked cell value:', this.items[rowIdx][colName]);
+
             this.selectedRow = rowIdx;
             this.selectedCell = colName;
             this.selectedItem = this.items[rowIdx];
@@ -222,6 +248,57 @@ export default {
                 this.sortDirection = 'asc';
             }
         },
+        startResize(event, col) {
+            event.preventDefault();
+            const startX = event.pageX;
+            const startWidth = col.width || 120;
+            const container = event.target.closest('.masterdata-table-container');
+            const containerWidth = container.offsetWidth;
+
+            // Store initial widths
+            const initialWidths = this.visibleColumns.map(c => c.width || 120);
+
+            const onMouseMove = (e) => {
+                const delta = e.pageX - startX;
+                let newWidth = Math.max(40, startWidth + delta);
+
+                // Calculate remaining width for other columns
+                const otherTotal = initialWidths.reduce((sum, w, idx) => sum + (this.visibleColumns[idx] === col ? 0 : w), 0);
+                const remainingWidth = containerWidth - newWidth;
+                const scale = remainingWidth / otherTotal;
+
+                // Set new width for resized column
+                col.width = newWidth;
+
+                // Proportionally adjust other columns
+                this.visibleColumns.forEach((c, idx) => {
+                    if (c !== col) {
+                        c.width = Math.max(40, Math.round(initialWidths[idx] * scale));
+                    }
+                });
+            };
+
+            const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+
+                // Save all columns' configs
+                this.visibleColumns.forEach(c => this.saveColConfig({ ...c }));
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        },
+        async saveColConfig(colConfigDetail) {
+            try {
+                await axios.put(
+                    `${API_BASE_URL}/utility/colConfigDetail/${colConfigDetail.idColConfigDetail}`,
+                    colConfigDetail
+                );
+            } catch (e) {
+                alert('Error saving column configuration');
+            }
+        }
     },
     watch: {
         filter: {
@@ -235,24 +312,9 @@ export default {
 </script>
 
 <style scoped>
-.sort-arrow {
-    position: absolute;
-    right: 6px;
-    bottom: 2px;
-    font-size: 1em;
-    color: #222;
-    pointer-events: none;
-}
-
-.masterdata-table th {
-    position: relative;
-    cursor: pointer;
-    user-select: none;
-}
-
 .masterdata-bg {
-    min-height: 100vh;
-    width: 100vw;
+    width: 100%;
+    height: 100%;
     background: #fff;
     display: flex;
     flex-direction: column;
@@ -263,37 +325,11 @@ export default {
     width: 100%;
     max-width: 1200px;
     margin: 0 auto;
-    padding-bottom: 40px;
-}
-
-.masterdata-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 16px;
-}
-
-.masterdata-table th,
-.masterdata-table td {
-    border: 1px solid #888;
-    padding: 6px 8px;
-    text-align: left;
-}
-
-.masterdata-table th {
-    background: #f0f0f0;
-}
-
-.table-input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 4px;
-    background: #fff;
-    border: none;
-    outline: none;
-}
-
-.table-input:focus {
-    background: #e6f0ff;
+    padding-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Fill parent section */
+    min-height: 0;
 }
 
 .action-icons {
@@ -309,7 +345,88 @@ export default {
     vertical-align: middle;
 }
 
-.row-selected>td {
+.masterdata-table-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.masterdata-table-head {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+.masterdata-table-body {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+.masterdata-tbody-scroll {
+    flex: 1;
+    overflow-y: auto;
+    width: 100%;
+    max-height: 100%;
+    min-height: 0;
+}
+
+.masterdata-table th,
+.masterdata-table td {
+    border: 1px solid #888;
+    padding: 6px 8px;
+    text-align: left;
+    box-sizing: border-box;
+    background: #fff;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.masterdata-table th {
+    background: #f0f0f0;
+    position: relative;
+    user-select: none;
+    cursor: pointer;
+}
+
+.sort-arrow {
+    position: absolute;
+    right: 6px;
+    bottom: 2px;
+    font-size: 1em;
+    color: #222;
+    pointer-events: none;
+}
+
+.col-resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 10;
+}
+
+.table-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+    background: #fff;
+    border: none;
+    outline: none;
+    color: #222;
+    font-size: 1em;
+}
+
+.table-input:focus {
+    background: #e6f0ff;
+}
+
+.row-selected > td {
     background: #e0f7fa !important;
 }
 
@@ -320,11 +437,8 @@ export default {
 
 .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.3);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -337,7 +451,7 @@ export default {
     border-radius: 8px;
     min-width: 320px;
     max-width: 90vw;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
     position: relative;
 }
 
