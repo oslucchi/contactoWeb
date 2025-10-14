@@ -3,27 +3,21 @@
         <div class="masterdata-content">
             <h2>{{ tableConfig.table }}</h2>
             <div class="action-icons">
-                <button v-if="featuresEnabled[0]"
-                        :disabled="selectedRowId === null" 
-                        @click.stop="openEditModal">
+                <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
                     <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
                 </button>
-                <button v-if="featuresEnabled[1]" 
-                        :disabled="selectedRowId === null" 
-                        @click.stop="deleteSelectedRow">
+                <button v-if="featuresEnabled[1]" :disabled="selectedRowId === null" @click.stop="deleteSelectedRow">
                     <img src="@/assets/icons/recycle-bin.png" alt="Delete" class="icon" />
                 </button>
-                <button v-if="featuresEnabled[2]" 
-                        @click.stop="addNewItem">
+                <button v-if="featuresEnabled[2]" @click.stop="addNewItem">
                     <img src="@/assets/icons/add.png" alt="Add" class="icon" />
                 </button>
-                <button v-if="featuresEnabled[3]" 
-                        @click.stop="searchElements">
+                <button v-if="featuresEnabled[3]" @click.stop="searchElements">
                     <img src="@/assets/icons/search.png" alt="Search" class="icon" />
                 </button>
             </div>
-            <div class="masterdata-table-container">
-                <!-- Table for thead only -->
+
+            <!-- <div class="masterdata-table-container">
                 <table class="masterdata-table masterdata-table-head">
                     <colgroup>
                         <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
@@ -38,13 +32,13 @@
                                     <span v-if="sortDirection === 'asc'">&#8595;</span>
                                     <span v-else-if="sortDirection === 'desc'">&#8593;</span>
                                 </span>
-                                <!-- Resizer -->
+                                
                                 <span class="col-resizer" @mousedown="startResize($event, col)"></span>
                             </th>
                         </tr>
                     </thead>
                 </table>
-                <!-- Scrollable tbody in a separate table -->
+
                 <div class="masterdata-tbody-scroll">
                     <table class="masterdata-table masterdata-table-body">
                         <colgroup>
@@ -56,32 +50,59 @@
                                 :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }"
                                 @click="selectRow(item, rowIdx)"
                             >
-                                <td v-for="col in visibleColumns" :key="col.idColConfigDetail" :class="col.colName"
-                                    @click.stop="selectCell(item, rowIdx, col.colName)">
-                                    <template v-if="selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4]">
-                                        <input class="table-input"
-                                            @change="saveItem(item)"
-                                            v-model="item[col.colName]" 
-                                            :type="getInputType(item[col.colName])" 
-                                            :placeholder="col.showName" />
-                                    </template> 
-                                   <template v-else>
+                                <td v-for="col in visibleColumns" 
+                                    :key="col.idColConfigDetail" 
+                                    :class="col.colName"
+                                    @click.stop="selectCell(item, rowIdx, col.colName)"
+                                >
+                                    <input
+                                        v-if="selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4]"
+                                        class="table-input"
+                                        @change="saveItem(item)"
+                                        v-model="item[col.colName]" 
+                                        :type="getInputType(item[col.colName])" 
+                                        :placeholder="col.showName" />
+                                    <span v-else>
                                         {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
-                                    </template>
+                                    </span>
                                 </td>
-                            </tr>
+                            </tr> 
                         </tbody>
                     </table>
                 </div>
+                -->
+            <div class="masterdata-table-container">
+                <table class="masterdata-table">
+                    <colgroup>
+                        <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
+                            :style="{ width: (col.width || 120) + 'px' }" />
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th v-for="col in visibleColumns" :key="col.idColConfigDetail">
+                                {{ col.showName }}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(item, rowIdx) in sortedItems" @click.stop="selectRow(item, rowIdx)"
+                            :key="getRowIdFromData(item, rowIdx)"
+                            :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }">
+                            <td v-for="col in visibleColumns">
+                                <input class="table-input" v-model="item[col.colName]" />
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-            <!-- Edit Modal Placeholder -->
-            <div v-if="showEditModal" class="modal-overlay" @click.stop>
-                <div class="modal-content">
-                    <button class="modal-close" @click="showEditModal = false">X</button>
-                    <h3>Edit {{ tableConfig.table }}</h3>
-                    <div>
-                        <pre>{{ selectedItem }}</pre>
-                    </div>
+        </div>
+        <!-- Edit Modal Placeholder -->
+        <div v-if="showEditModal" class="modal-overlay" @click.stop>
+            <div class="modal-content">
+                <button class="modal-close" @click="showEditModal = false">X</button>
+                <h3>Edit {{ tableConfig.table }}</h3>
+                <div>
+                    <pre>{{ selectedItem }}</pre>
                 </div>
             </div>
         </div>
@@ -165,27 +186,43 @@ export default {
             });
             return item;
         });
+        if (this.items.length && this.visibleColumns.length) {
+            const firstCol = this.visibleColumns[0].colName;
+        }
     },
     methods: {
         getRowIdFromData(item, rowIdx) {
             if (!this.tableConfig || !this.tableConfig.columns) return rowIdx;
             const idValue = item[this.itemIdField];
+            console.log('getRowIdFromData:', idValue, item.colName, this.itemIdField);
             return idValue || rowIdx;
         },
         selectRow(item, rowIdx) {
+            console.log('selectRow called:', item.colName, rowIdx);
             this.selectedRowId = this.getRowIdFromData(item, rowIdx);
             this.selectedCell = null;
             this.selectedItem = item;
             this.tableRenderKey++;
         },
         selectCell(item, rowIdx, colName) {
+            console.log('selectCell called:', item.colName, rowIdx, colName);
             this.selectedRowId = this.getRowIdFromData(item, rowIdx);
             this.selectedCell = colName;
             this.selectedItem = item;
-            this.tableRenderKey++;
+            console.log(
+                `selectedRowId ${this.selectedRowId} getRowIdFromData ${this.getRowIdFromData(item, rowIdx)}`
+            );
+            console.log(
+                `selectedCell ${this.selectedCell} col.colName ${colName}`
+            );
+            console.log(
+                `isEditEnabled? ${this.featuresEnabled[4]}`
+            );
+
             if (this.tableConfig && this.tableConfig.element.toLowerCase() === 'company') {
                 this.$emit('rowSelected', this.selectedItem);
             }
+            this.tableRenderKey++;
         },
         getInputType(val) {
             if (typeof val === 'number') return 'number';
@@ -364,24 +401,10 @@ export default {
     min-height: 0;
 }
 
-.masterdata-table-head {
+.masterdata-table {
     width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
-}
-
-.masterdata-table-body {
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: collapse;
-}
-
-.masterdata-tbody-scroll {
-    flex: 1;
-    overflow-y: auto;
-    width: 100%;
-    max-height: 100%;
-    min-height: 0;
 }
 
 .masterdata-table th,
@@ -391,9 +414,8 @@ export default {
     text-align: left;
     box-sizing: border-box;
     background: #fff;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    /* white-space: nowrap;
+    text-overflow: ellipsis; */
 }
 
 .masterdata-table th {
@@ -401,6 +423,14 @@ export default {
     position: relative;
     user-select: none;
     cursor: pointer;
+}
+
+.masterdata-tbody-scroll {
+    flex: 1;
+    overflow-y: auto;
+    width: 100%;
+    max-height: 100%;
+    min-height: 0;
 }
 
 .sort-arrow {
@@ -424,13 +454,14 @@ export default {
 
 .table-input {
     width: 100%;
-    box-sizing: border-box;
-    padding: 4px;
-    background: #fff;
-    border: none;
-    outline: none;
+    min-width: 40px;
+    min-height: 24px;
+    background: inherit !important;
     color: #222;
-    font-size: 1em;
+    border: 1px solid #0288d1;
+    z-index: 1;
+    position: relative;
+    pointer-events: auto;
 }
 
 .table-input:focus {
@@ -441,6 +472,10 @@ tr.row-selected td {
     background: #e0f7fa !important;
 }
 
+.masterdata-table .row-selected td {
+    background: #e0f7fa !important;
+}
+
 .cell-selected {
     background: #b3e5fc !important;
     box-shadow: 0 0 0 2px #0288d1 inset;
@@ -448,8 +483,11 @@ tr.row-selected td {
 
 .modal-overlay {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.3);
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -462,7 +500,7 @@ tr.row-selected td {
     border-radius: 8px;
     min-width: 320px;
     max-width: 90vw;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
     position: relative;
 }
 
