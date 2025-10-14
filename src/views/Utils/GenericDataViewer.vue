@@ -203,6 +203,7 @@ export default {
             this.selectedCell = null;
             this.selectedItem = item;
             this.tableRenderKey++;
+            this.$emit('rowSelected', this.selectedItem); // Add this line
         },
         selectCell(item, rowIdx, colName) {
             console.log('selectCell called:', item.colName, rowIdx, colName);
@@ -458,7 +459,7 @@ export default {
     min-height: 24px;
     background: inherit !important;
     color: #222;
-    border: 1px solid #0288d1;
+    border: none;
     z-index: 1;
     position: relative;
     pointer-events: auto;
