@@ -15,6 +15,7 @@ import EmployeesList from '../views/MasterDataHandlers/Employees/EmployeesList.v
 import AgendaCalendar from '@/views/Agenda/AgendaCalendar.vue';
 import ProjectsList from '@/views/MasterDataHandlers/Projects/ProjectsList.vue';
 import ProjectsForm from '@/views/MasterDataHandlers/Projects/ProjectsForm.vue';
+import DashboardByCompany from '../views/Utils/DashboardByCompany.vue';
 
 Vue.use(VueRouter);
 
@@ -43,6 +44,8 @@ const routes = [
   { path: '/projects', component: ProjectsList },
   { path: '/projects/new', component: ProjectsForm },
   { path: '/projects/:id', component: ProjectsForm, props: true },
+
+  { path: '/dashboardByCompany', component: DashboardByCompany },
 
   { path: '/agenda/schedule', component: AgendaCalendar, props: true },
 ];

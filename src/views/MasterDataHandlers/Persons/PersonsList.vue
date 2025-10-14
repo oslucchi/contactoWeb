@@ -17,15 +17,18 @@
       <table class="persons-table" @click.stop>
         <thead>
           <tr>
-            <th>First Name</th>
-            <th>Family Name</th>
-            <th>Company</th>
-            <th>Email</th>
+            <th v-for="col in columns" :key="col.key" :class="col.key" @click.stop="col.sortable && handleSort(col.key)">
+              {{ col.label }}
+              <span v-if="col.sortable && sortColumn === col.key" class="sort-arrow">
+                <span v-if="sortDirection === 'asc'">&#8595;</span>
+                <span v-else-if="sortDirection === 'desc'">&#8593;</span>
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="(person, rowIdx) in persons"
+            v-for="(person, rowIdx) in sortedPersons"
             :key="person.idPerson"
             :class="{ 'row-selected': selectedRow === rowIdx }"
           >
@@ -77,6 +80,7 @@
 <script>
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
+import Person from '@/types/Person';
 
 export default {
   data() {
@@ -86,7 +90,29 @@ export default {
       selectedCell: null,
       showEditModal: false,
       selectedPerson: null,
+      sortColumn: null,
+      sortDirection: null,
+      columns: [
+        { key: 'firstName', label: 'First Name', sortable: true },
+        { key: 'familyName', label: 'Family Name', sortable: true },
+        { key: 'company', label: 'Company', sortable: true },
+        { key: 'email', label: 'Email', sortable: true },
+      ],
     };
+  },
+  computed: {
+    sortedPersons() {
+      if (!this.sortColumn || !this.sortDirection) return this.persons;
+      let sorted = [...this.persons];
+      sorted.sort((a, b) => {
+        let valA = a[this.sortColumn] || '';
+        let valB = b[this.sortColumn] || '';
+        if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+      return sorted;
+    }
   },
   created() {
     axios.get(`${API_BASE_URL}/persons/getBySubstring?searchFor=`).then(res => {
@@ -94,16 +120,9 @@ export default {
     });
   },
   methods: {
-    formatDateForInput(dateStr) {
-      if (!dateStr) return '';
-      return dateStr.slice(0, 10);
-    },
-    async savePerson(person) {
-      try {
-        await axios.put(`${API_BASE_URL}/persons/${person.idPerson}`, person);
-      } catch (e) {
-        alert('Error saving person');
-      }
+    savePerson(person) {
+      axios.put(`${API_BASE_URL}/persons/${person.idPerson}`, person)
+        .catch(() => alert('Error saving person'));
     },
     selectCell(rowIdx, cellName) {
       this.selectedRow = rowIdx;
@@ -129,31 +148,53 @@ export default {
         }
       }
     },
-    addNewPerson() {
-      const newPerson = {
-        idPerson: Date.now(),
-        firstName: '',
-        familyName: '',
-        company: '',
-        email: '',
-        created: '',
-        lastUpdate: ''
-      };
-      this.persons.push(newPerson);
+    async addNewPerson() {
+      const newPerson = new Person();
+      await axios.post(`${API_BASE_URL}/persons/create`, newPerson)
+        .then(res => {
+          this.persons.push(res.data);
+        }
+      );
       this.selectedRow = this.persons.length - 1;
-      this.selectedCell = 'first-name';
+      this.selectedCell = 'firstName';
       this.selectedPerson = newPerson;
     },
     deselectRow() {
       this.selectedRow = null;
       this.selectedCell = null;
       this.selectedPerson = null;
-    }
+    },
+    handleSort(column) {
+      if (this.sortColumn !== column) {
+        this.sortColumn = column;
+        this.sortDirection = 'asc';
+      } else if (this.sortDirection === 'asc') {
+        this.sortDirection = 'desc';
+      } else if (this.sortDirection === 'desc') {
+        this.sortColumn = null;
+        this.sortDirection = null;
+      } else {
+        this.sortDirection = 'asc';
+      }
+    },
   }
 }
 </script>
 
 <style scoped>
+.sort-arrow {
+  position: absolute;
+  right: 6px;
+  bottom: 2px;
+  font-size: 1em;
+  color: #222;
+  pointer-events: none;
+}
+.persons-table th {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
 .persons-bg {
   min-height: 100vh;
   width: 100vw;
@@ -191,13 +232,6 @@ export default {
 }
 .table-input:focus {
   background: #e6f0ff;
-}
-.persons-table td.company,
-.persons-table td.created,
-.persons-table td.last-update {
-  width: 140px;
-  min-width: 120px;
-  max-width: 180px;
 }
 .action-icons {
   display: flex;
