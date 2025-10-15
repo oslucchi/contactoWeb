@@ -98,11 +98,9 @@ export default {
 .dashboard-block {
     background: #f9f9f9;
     border-radius: 6px;
-    margin-bottom: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    padding: 8px;
     min-height: 120px;
     overflow: auto;
+    border: 1px solid black;
 }
 
 .companies-block {

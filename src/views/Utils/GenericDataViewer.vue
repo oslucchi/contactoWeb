@@ -391,6 +391,22 @@ export default {
     min-height: 0;
 }
 
+.masterdata-table tbody tr:nth-child(odd) td {
+    background: #fff;
+}
+
+.masterdata-table tbody tr:nth-child(even) td {
+    background: #f7f7f7;
+}
+
+.masterdata-table tbody tr:hover td {
+    background: #e3f9fc !important; /* Lighter than selected */
+}
+
+/* Keep the selected row highlight above the alternating backgrounds */
+.masterdata-table .row-selected td {
+    background: #e0f7fa !important;
+}
 .sort-arrow {
     position: absolute;
     right: 6px;
