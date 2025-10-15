@@ -1,8 +1,8 @@
 <template>
-    <div class="masterdata-bg" @click="deselectRow">
-        <div class="masterdata-content">
-            <h2>{{ tableConfig.table }}</h2>
-            <div class="action-icons">
+    <div class="masterdata-bg"
+        @click="deselectRow">
+        <div class="masterdata-content" >
+            <div v-if="anyActionEnabled" class="action-icons">
                 <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
                     <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
                 </button>
@@ -16,21 +16,32 @@
                     <img src="@/assets/icons/search.png" alt="Search" class="icon" />
                 </button>
             </div>
-            <div class="masterdata-table-container">
-                <table class="masterdata-table">
-                    <colgroup>
-                        <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
-                            :style="{ width: (col.width || 120) + 'px' }" />
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th v-for="col in visibleColumns" :key="col.idColConfigDetail">
-                                {{ col.showName }}
-                            </th>
-                        </tr>
-                    </thead>
-                </table>
-                <div class="masterdata-tbody-scroll">
+            <div class="masterdata-table-container" 
+                 :style="{ height: tableHeight + 'px', width: containerWidth + 'px', padding: '2px', overflowX: 'auto' }">
+                <div class="masterdata-table-header" 
+                     :style="{ width: tableWidth + 'px' }">
+                    <table class="masterdata-table">
+                        <colgroup>
+                            <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
+                                :style="{ width: (col.width || 120) + 'px' }" />
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th v-for="col in visibleColumns"
+                                    :key="col.idColConfigDetail"
+                                    :style="{ width: (col.width || 120) + 'px' }"
+                                    @click="handleSort(col.colName)">
+                                    {{ col.showName }}
+                                    <span v-if="sortColumn === col.colName" class="sort-arrow">
+                                        {{ sortDirection === 'asc' ? '▲' : '▼' }}
+                                    </span>
+                                </th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+                <div class="masterdata-tbody-scroll"
+                     :style="{ width: tableWidth + 'px', maxHeight: bodyHeight + 'px', overflowY: 'auto', overflowX: 'auto' }">
                     <table class="masterdata-table">
                         <colgroup>
                             <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
@@ -40,18 +51,25 @@
                             <tr v-for="(item, rowIdx) in sortedItems" :key="getRowIdFromData(item, rowIdx)"
                                 :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }">
                                 <td v-for="col in visibleColumns"
+                                    :key="col.idColConfigDetail"
+                                    :style="{ width: (col.width || 120) + 'px' }"
                                     :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
                                     @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)">
-                                    <div v-if="selectedCell === col.colName && featuresEnabled[4]"
-                                        style="display:flex; align-items:center; font-family:inherit; font-size:inherit; font-weight:inherit; padding:2px 6px;">
-                                        <input class="table-input" v-model="item[col.colName]" />
+                                    <div v-if="item[col.colName] !== undefined"
+                                        style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; padding: 2px 6px;">
+                                        <div v-if="selectedCell === col.colName && featuresEnabled[4]">
+                                            <input class="table-input" v-model="item[col.colName]" style="width: 100%;" />
+                                        </div>
+                                        <div v-else>
+                                            {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
+                                        </div>
                                     </div>
-                                    <div v-else
-                                        style="display:flex; align-items:center; font-family:inherit; font-size:inherit; font-weight:inherit; padding:2px 6px;">
-                                        {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
+                                    <div v-else>
+                                        <!-- Empty cell for padding -->
+                                        &nbsp;
                                     </div>
-                                </td>
-                            </tr>
+                                </td> 
+                           </tr>
                         </tbody>
                     </table>
                 </div>
@@ -87,6 +105,8 @@ export default {
         filter: { type: Object, default: () => ({}) },
         featuresEnabled: { type: Array, default: () => [false, false, false, false, false] },
         editCellEnabled: { type: Boolean, default: false },
+        tableHeight: { type: Number, required: true },
+        containerWidth: { type: Number, required: true },
     },
     data() {
         return {
@@ -99,9 +119,31 @@ export default {
             sortColumn: null,
             sortDirection: null,
             tableRenderKey: 0,
+            bodyHeight: 280,  // Subtract header height
+            tableWidth: 800,  // Sum of colConfig widths or container width
+            rowHeight: 20,
         };
     },
+
+    mounted() {
+        // Optionally, add resize event listener to recalculate sizes
+        window.addEventListener('resize', this.calculateTableDimensions);
+        this.calculateTableDimensions();
+        console.log('Mounted with containerWidth:', this.containerWidth);
+    },
+
     computed: {
+        anyActionEnabled() {
+            return this.featuresEnabled.some(f => f);
+        },
+        paddedItems() {
+            const rowsToShow = 10; // Or calculate based on container/table height
+            const items = this.sortedItems.slice(0, rowsToShow);
+            while (items.length < rowsToShow) {
+                items.push({});
+            }
+            return items;
+        },
         visibleColumns() {
             if (!this.tableConfig) return [];
             return this.tableConfig.columns
@@ -153,6 +195,16 @@ export default {
         }
     },
     methods: {
+        calculateTableDimensions() {
+            const availableWidth = this.$el.parentElement.offsetWidth;
+            const rowHeight = this.rowHeight; // Use config value
+            const visibleRows = Math.max(1, Math.floor((this.tableHeight - 4)/ rowHeight) - 1);
+            this.bodyHeight = visibleRows * rowHeight;
+
+            const totalColWidth = this.visibleColumns.reduce((sum, col) => sum + (col.width || 120), 0);
+            this.tableWidth = Math.max(availableWidth, totalColWidth);
+        },
+
         getRowIdFromData(item, rowIdx) {
             if (!this.tableConfig || !this.tableConfig.columns) return rowIdx;
             const idValue = item[this.itemIdField];
@@ -331,7 +383,6 @@ export default {
 .masterdata-content {
     flex: 1;
     width: 100%;
-    max-width: 1200px;
     margin: 0 auto;
     padding-bottom: 24px;
     display: flex;
@@ -354,26 +405,37 @@ export default {
 }
 
 .masterdata-table-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+    position: relative;
+    width: 100%;
     height: 100%;
-    min-height: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px;
+    box-sizing: border-box;
+}
+
+.masterdata-tbody-scroll {
+    width: 100%;
+    overflow-y: auto;
+    overflow-x: auto;
 }
 
 .masterdata-table {
-    width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
+    width: max-content;
+    max-width: max-content;
 }
 
 .masterdata-table th,
 .masterdata-table td {
     border: 1px solid #888;
-    padding: 6px 8px;
+    padding: 2px 6px;
     text-align: left;
     box-sizing: border-box;
     background: #fff;
+    height: 18px;
+    vertical-align: middle;
 }
 
 .masterdata-table th {
@@ -383,75 +445,25 @@ export default {
     cursor: pointer;
 }
 
-.masterdata-tbody-scroll {
-    flex: 1;
-    overflow-y: auto;
-    width: 100%;
-    max-height: 100%;
-    min-height: 0;
-}
-
 .masterdata-table tbody tr:nth-child(odd) td {
     background: #fff;
 }
 
 .masterdata-table tbody tr:nth-child(even) td {
-    background: #f7f7f7;
+    background: #eaeaea;
 }
 
 .masterdata-table tbody tr:hover td {
-    background: #e3f9fc !important; /* Lighter than selected */
+    background: #e3f9fc !important;
 }
 
-/* Keep the selected row highlight above the alternating backgrounds */
-.masterdata-table .row-selected td {
+.masterdata-table .row-selected td,
+tr.row-selected td {
     background: #e0f7fa !important;
 }
-.sort-arrow {
-    position: absolute;
-    right: 6px;
-    bottom: 2px;
-    font-size: 1em;
-    color: #222;
-    pointer-events: none;
-}
 
-.col-resizer {
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 6px;
-    height: 100%;
-    cursor: col-resize;
-    z-index: 10;
-}
-
-.scrollable-tbody {
-    display: block;
-    max-height: 320px;
-    /* Set your desired body height */
-    overflow-y: auto;
-    width: 100%;
-}
-
-.scrollable-tbody tr {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-}
-
-.masterdata-table thead,
-.masterdata-table tbody tr {
-    width: 100%;
-    table-layout: fixed;
-}
-
-.masterdata-table td {
-    height: 18px;
-    vertical-align: middle;
-    padding: 2px 6px;
-    box-sizing: border-box;
-    border: 1px solid #888;
+.td-editable {
+    border: 2px solid #1900fd !important;
 }
 
 .table-input {
@@ -470,26 +482,27 @@ export default {
     outline: none;
 }
 
-.td-editable {
-    border: 3px solid #1900fd !important;
-    /* Light blue border for editable cell */
-}
-
 .table-input:focus {
     background: #e6f0ff;
 }
 
-tr.row-selected td {
-    background: #e0f7fa !important;
+.sort-arrow {
+    position: absolute;
+    right: 6px;
+    bottom: 2px;
+    font-size: 1em;
+    color: #222;
+    pointer-events: none;
 }
 
-.masterdata-table .row-selected td {
-    background: #e0f7fa !important;
-}
-
-.cell-selected {
-    background: #b3e5fc !important;
-    box-shadow: 0 0 0 2px #0288d1 inset;
+.col-resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 10;
 }
 
 .modal-overlay {
