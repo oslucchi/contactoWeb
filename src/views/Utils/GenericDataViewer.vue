@@ -1,91 +1,107 @@
 <template>
-    <div class="masterdata-bg"
-        @click="deselectRow">
-        <div class="masterdata-content" >
-            <div v-if="anyActionEnabled" class="action-icons">
-                <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
-                    <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
-                </button>
-                <button v-if="featuresEnabled[1]" :disabled="selectedRowId === null" @click.stop="deleteSelectedRow">
-                    <img src="@/assets/icons/recycle-bin.png" alt="Delete" class="icon" />
-                </button>
-                <button v-if="featuresEnabled[2]" @click.stop="addNewItem">
-                    <img src="@/assets/icons/add.png" alt="Add" class="icon" />
-                </button>
-                <button v-if="featuresEnabled[3]" @click.stop="searchElements">
-                    <img src="@/assets/icons/search.png" alt="Search" class="icon" />
-                </button>
-            </div>
-            <div class="masterdata-table-container" 
-                 :style="{ height: tableHeight + 'px', width: containerWidth + 'px', padding: '2px', overflowX: 'auto' }">
-                <div class="masterdata-table-header" 
-                     :style="{ width: tableWidth + 'px' }">
-                    <table class="masterdata-table">
-                        <colgroup>
-                            <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
-                                :style="{ width: (col.width || 120) + 'px' }" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th v-for="col in visibleColumns"
-                                    :key="col.idColConfigDetail"
-                                    :style="{ width: (col.width || 120) + 'px' }"
-                                    @click="handleSort(col.colName)">
-                                    {{ col.showName }}
-                                    <span v-if="sortColumn === col.colName" class="sort-arrow">
-                                        {{ sortDirection === 'asc' ? '▲' : '▼' }}
-                                    </span>
-                                </th>
-                            </tr>
-                        </thead>
-                    </table>
-                </div>
-                <div class="masterdata-tbody-scroll"
-                     :style="{ width: tableWidth + 'px', maxHeight: bodyHeight + 'px', overflowY: 'auto', overflowX: 'auto' }">
-                    <table class="masterdata-table">
-                        <colgroup>
-                            <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
-                                :style="{ width: (col.width || 120) + 'px' }" />
-                        </colgroup>
-                        <tbody>
-                            <tr v-for="(item, rowIdx) in sortedItems" :key="getRowIdFromData(item, rowIdx)"
-                                :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }">
-                                <td v-for="col in visibleColumns"
-                                    :key="col.idColConfigDetail"
-                                    :style="{ width: (col.width || 120) + 'px' }"
-                                    :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
-                                    @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)">
-                                    <div v-if="item[col.colName] !== undefined"
-                                        style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; padding: 2px 6px;">
-                                        <div v-if="selectedCell === col.colName && featuresEnabled[4]">
-                                            <input class="table-input" v-model="item[col.colName]" style="width: 100%;" />
-                                        </div>
-                                        <div v-else>
-                                            {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
-                                        </div>
-                                    </div>
-                                    <div v-else>
-                                        <!-- Empty cell for padding -->
-                                        &nbsp;
-                                    </div>
-                                </td> 
-                           </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <!-- Edit Modal Placeholder -->
-            <div v-if="showEditModal" class="modal-overlay" @click.stop>
-                <div class="modal-content">
-                    <button class="modal-close" @click="showEditModal = false">X</button>
-                    <h3>Edit {{ tableConfig.table }}</h3>
-                    <div>
-                        <pre>{{ selectedItem }}</pre>
-                    </div>
-                </div>
-            </div>
+  <div class="masterdata-bg" @click="deselectRow">
+    <div class="masterdata-content">
+      <!-- Action bar -->
+      <div v-if="anyActionEnabled" class="action-icons">
+        <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
+          <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
+        </button>
+        <button v-if="featuresEnabled[1]" :disabled="selectedRowId === null" @click.stop="deleteSelectedRow">
+          <img src="@/assets/icons/recycle-bin.png" alt="Delete" class="icon" />
+        </button>
+        <button v-if="featuresEnabled[2]" @click.stop="addNewItem">
+          <img src="@/assets/icons/add.png" alt="Add" class="icon" />
+        </button>
+        <button v-if="featuresEnabled[3]" @click.stop="searchElements">
+          <img src="@/assets/icons/search.png" alt="Search" class="icon" />
+        </button>
+      </div>
+
+      <div class="masterdata-table-container" :style="{ height: tableHeight + 'px', padding: '2px' }">
+        <div class="masterdata-table-header" ref="headerRef">
+          <table class="masterdata-table">
+            <colgroup>
+              <col
+                v-for="col in visibleColumns"
+                :key="col.idColConfigDetail"
+                :style="{ width: (col.width || 120) + 'px' }"
+              />
+            </colgroup>
+            <thead>
+              <tr>
+                <th
+                  v-for="col in visibleColumns"
+                  :key="col.idColConfigDetail"
+                  :style="{ width: (col.width || 120) + 'px' }"
+                  @click="handleSort(col.colName)"
+                >
+                  {{ col.showName }}
+                  <span v-if="sortColumn === col.colName" class="sort-arrow">
+                    {{ sortDirection === 'asc' ? '▲' : '▼' }}
+                  </span>
+                </th>
+              </tr>
+            </thead>
+          </table>
         </div>
+        <div
+          class="masterdata-tbody-scroll"
+          ref="tbodyScroll"
+          @scroll="syncHeaderScroll"
+          :style="{ maxHeight: bodyHeight + 'px' }"
+        >
+          <table class="masterdata-table">
+            <colgroup>
+              <col
+                v-for="col in visibleColumns"
+                :key="col.idColConfigDetail"
+                :style="{ width: (col.width || 120) + 'px' }"
+              />
+            </colgroup>
+            <tbody>
+              <tr
+                v-for="(item, rowIdx) in sortedItems"
+                :key="getRowIdFromData(item, rowIdx)"
+                :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }"
+              >
+                <td
+                  v-for="col in visibleColumns"
+                  :key="col.idColConfigDetail"
+                  :style="{ width: (col.width || 120) + 'px' }"
+                  :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
+                  @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)"
+                >
+                  <div
+                    v-if="item[col.colName] !== undefined"
+                    style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; padding: 2px 6px;"
+                  >
+                    <div v-if="selectedCell === col.colName && featuresEnabled[4]">
+                      <input class="table-input" v-model="item[col.colName]" style="width: 100%;" />
+                    </div>
+                    <div v-else>
+                      {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
+                    </div>
+                  </div>
+                  <div v-else>&nbsp;</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Edit Modal -->
+      <div v-if="showEditModal" class="modal-overlay" @click.stop>
+        <div class="modal-content">
+          <button class="modal-close" @click="showEditModal = false">X</button>
+          <h3>Edit {{ tableConfig.table }}</h3>
+          <div>
+            <pre>{{ selectedItem }}</pre>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 </template>
 
 <script>
@@ -98,6 +114,7 @@ function getClassByName(name) {
 }
 
 export default {
+    name: 'GenericDataViewer',
     props: {
         page: { type: String, required: true },
         element: { type: String, required: true },
@@ -108,9 +125,10 @@ export default {
         tableHeight: { type: Number, required: true },
         containerWidth: { type: Number, required: true },
     },
+    emits: ['rowSelected'],
     data() {
         return {
-            tableConfig: null,
+            tableConfig: { table: this.element }, // it was null before
             items: [],
             selectedRowId: null,
             selectedCell: null,
@@ -119,9 +137,9 @@ export default {
             sortColumn: null,
             sortDirection: null,
             tableRenderKey: 0,
-            bodyHeight: 280,  // Subtract header height
-            tableWidth: 800,  // Sum of colConfig widths or container width
             rowHeight: 20,
+            localBodyHeight: 0,
+            localTableWidth: 0,
         };
     },
 
@@ -144,11 +162,26 @@ export default {
             }
             return items;
         },
+        // Total width of columns (used only for logic if needed)
+        tableWidth() {
+            if (this.localTableWidth) return this.localTableWidth;
+            // fallback: compute dynamically if needed
+            if (!this.visibleColumns.length) return 0;
+            return this.visibleColumns.reduce((sum, col) => sum + (col.width || 120), 0);
+        },
+        // Body height = full tableHeight minus an estimated header block
+        bodyHeight() {
+            return this.localBodyHeight || (this.tableHeight - 28);
+        },
         visibleColumns() {
+            var cols = (this.tableConfig && Array.isArray(this.tableConfig.columns)) ?
+                        this.tableConfig.columns
+                        :
+                        [];
             if (!this.tableConfig) return [];
-            return this.tableConfig.columns
-                .filter(col => col.visible)
-                .sort((a, b) => a.position - b.position);
+            return cols
+                .filter(col => col.visible === 1 || col.visible  === '1' ||col.visible === true )
+                .sort((a, b) => { (a.position || 0) - (b.position || 0) } );
         },
         sortedItems() {
             if (!this.sortColumn || !this.sortDirection) return this.items;
@@ -172,37 +205,67 @@ export default {
         },
     },
     async created() {
+    try {
         const configRes = await axios.get(`${API_BASE_URL}/utility/browserData`, {
-            params: {
-                page: this.page,
-                element: this.element,
-                user: this.user
-            }
+        params: { page: this.page, element: this.element, user: this.user }
         });
-        this.tableConfig = new ColConfigHeader(configRes.data);
+
+        const cfg = configRes && configRes.data ? configRes.data : null;
+        if (!cfg || (cfg.columns && !Array.isArray(cfg.columns))) {
+        // invalid or null config from backend -> keep component safe and visible
+        console.warn('browserData returned invalid config:', cfg);
+        this.tableConfig = { table: this.element, columns: [], cliClassName: null, restModuleName: null, dataCollectMethod: null };
+        // optionally skip data fetch since there are no columns to render
+        return;
+        }
+
+        this.tableConfig = new ColConfigHeader(cfg);
+
+        // guard the rest too, since subsequent lines depend on these fields
+        if (!this.tableConfig.cliClassName || !this.tableConfig.restModuleName || !this.tableConfig.dataCollectMethod) {
+        console.warn('Missing required config fields:', this.tableConfig);
+        return;
+        }
 
         const ClassType = getClassByName(this.tableConfig.cliClassName);
-        const dataRes = await axios.get(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, { params: this.filter });
-        this.items = dataRes.data.map(obj => {
-            const item = obj instanceof ClassType ? obj : new ClassType(obj);
-            this.tableConfig.columns.forEach(col => {
-                if (!(col.colName in item)) item[col.colName] = '';
-            });
-            return item;
+        const dataRes = await axios.get(
+        `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`,
+        { params: this.filter }
+        );
+
+        this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
+        const item = obj instanceof ClassType ? obj : new ClassType(obj);
+        (this.tableConfig.columns || []).forEach(col => {
+            if (!(col.colName in item)) item[col.colName] = '';
         });
-        if (this.items.length && this.visibleColumns.length) {
-            const firstCol = this.visibleColumns[0].colName;
-        }
+        return item;
+        }) : [];
+
+    } catch (err) {
+        console.error('created() failed:', err);
+        // keep the component alive with a safe default
+        this.tableConfig = this.tableConfig || { table: this.element, columns: [] };
+        this.items = [];
+    }
     },
     methods: {
+        syncHeaderScroll(e) {
+            // If your template has ref="headerRef" on the header container:
+            const header = this.$refs && this.$refs.headerRef;
+            if (header) header.scrollLeft = e.target.scrollLeft;
+
+            // If you DON'T have that ref, you could alternatively do:
+            // const header = this.$el.querySelector('.masterdata-table-header');
+            // if (header) header.scrollLeft = e.target.scrollLeft;
+        },
         calculateTableDimensions() {
             const availableWidth = this.$el.parentElement.offsetWidth;
             const rowHeight = this.rowHeight; // Use config value
             const visibleRows = Math.max(1, Math.floor((this.tableHeight - 4)/ rowHeight) - 1);
-            this.bodyHeight = visibleRows * rowHeight;
+            this.localBodyHeight = visibleRows * rowHeight;
 
             const totalColWidth = this.visibleColumns.reduce((sum, col) => sum + (col.width || 120), 0);
-            this.tableWidth = Math.max(availableWidth, totalColWidth);
+            this.localTableWidth = Math.max(availableWidth, totalColWidth);
         },
 
         getRowIdFromData(item, rowIdx) {
@@ -372,25 +435,6 @@ export default {
 </script>
 
 <style scoped>
-.masterdata-bg {
-    width: 100%;
-    height: 100%;
-    background: #fff;
-    display: flex;
-    flex-direction: column;
-}
-
-.masterdata-content {
-    flex: 1;
-    width: 100%;
-    margin: 0 auto;
-    padding-bottom: 24px;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-}
-
 .action-icons {
     display: flex;
     align-items: center;
@@ -404,45 +448,88 @@ export default {
     vertical-align: middle;
 }
 
-.masterdata-table-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 2px;
-    box-sizing: border-box;
-}
-
+.masterdata-bg,
+.masterdata-content,
+.masterdata-table-container,
+.masterdata-table-header,
 .masterdata-tbody-scroll {
-    width: 100%;
-    overflow-y: auto;
-    overflow-x: auto;
+  box-sizing: border-box;
 }
 
+/* Outer layout */
+.masterdata-bg {
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.masterdata-content {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 24px;
+  min-height: 0; /* critical for nested flex + scroll */
+  min-width: 0;  /* critical in flex layouts to allow overflow/scroll */
+}
+
+.masterdata-table-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 2px;
+  overflow-x: auto;  /* allow horizontal scroll when needed */
+  overflow-y: hidden;
+  min-width: 0;      /* prevent flex shrink */
+  box-sizing: border-box;
+}
+
+/* Header stays visible; will follow horizontally via syncHeaderScroll */
+.masterdata-table-header {
+  width: 100%;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* tbody is the scroll region for both axes */
+.masterdata-tbody-scroll {
+  width: 100%;
+  overflow-y: auto; /* vertical scroll when rows exceed height */
+  overflow-x: auto; /* horizontal scroll when columns exceed width */
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+}
+
+/* Table sizing: fill container when narrow, grow when wide (no shrink) */
 .masterdata-table {
-    table-layout: fixed;
-    border-collapse: collapse;
-    width: max-content;
-    max-width: max-content;
+  table-layout: fixed;
+  border-collapse: collapse;
+  min-width: 100%;     /* fill the container if columns are narrow */
+  width: max-content;  /* grow beyond container when columns are wide -> triggers horizontal scroll */
+
 }
 
+/* Cell styling */
 .masterdata-table th,
 .masterdata-table td {
-    border: 1px solid #888;
-    padding: 2px 6px;
-    text-align: left;
-    box-sizing: border-box;
-    background: #fff;
-    height: 18px;
-    vertical-align: middle;
+  border: 1px solid #888;
+  padding: 2px 6px;
+  text-align: left;
+  background: #fff;
+  height: 18px;
+  vertical-align: middle;
+  box-sizing: border-box;
+  white-space: nowrap; /* prevent text wrapping that can "fake" shrinking */
 }
 
 .masterdata-table th {
-    background: #f0f0f0;
-    position: relative;
-    user-select: none;
-    cursor: pointer;
+  background: #f0f0f0;
+  position: relative;
+  user-select: none;
+  cursor: pointer;
 }
 
 .masterdata-table tbody tr:nth-child(odd) td {

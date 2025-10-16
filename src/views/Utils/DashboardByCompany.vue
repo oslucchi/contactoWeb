@@ -123,19 +123,27 @@ export default {
     gap: 8px;
 }
 
+/* SECTION is the hard boundary (optional but helpful) */
 .dashboard-block {
-    width: 100%;   /* Or set a max-width if needed */
+  box-sizing: border-box;
+  overflow: hidden; /* prevents “bleed” outside its own max width/height */
+}
+
+/*
+.dashboard-block {
+    width: 100%;   
     box-sizing: border-box;
     border-radius: 6px;
     border: 1px solid #ccc;
     overflow: hidden;
 
     max-height: 320px;
-    height: 320px; /* Example: adjust as needed or use JS to calculate */
+    height: 320px; 
     min-width: 320px;
     position: relative;
     background: #f9f9f9;
 }
+*/
 
 .companies-block {
     min-height: 160px;
