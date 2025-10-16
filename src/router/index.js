@@ -20,7 +20,7 @@ import DashboardByCompany from '../views/Utils/DashboardByCompany.vue';
 Vue.use(VueRouter);
 
 const routes = [
-  { path: '/', name: 'Home', component: Home },
+  { path: '/', name: 'Home', component: DashboardByCompany },
   { path: '/persons', component: PersonsList },
   { path: '/persons/new', component: PersonsForm },
   { path: '/persons/:id', component: PersonsForm, props: true },

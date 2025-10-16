@@ -13,6 +13,7 @@
                     :featuresEnabled="[false, false, false, true, true]"
                     :tableHeight=200
                     :containerWidth="mainAreaWidth"
+                    :preserveRightSpace="300"
                     @rowSelected="onCompanySelected" />
             </section>
             <section class="dashboard-block branches-block"
