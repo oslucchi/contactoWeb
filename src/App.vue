@@ -3,7 +3,7 @@
     <div class="app-banner">
       <div id="logo" class="logo" style="padding: 8px 16px;">
         <img alt="Contacto" src="@/assets/icons/contacto.png" style="height: 40px; margin-right: 10px;" />
-        <span style="color: green; font-style: italic;">actions at your fingertips</span>
+        <span style="color: green; font-style: italic;">all at your fingertips</span>
       </div>
       <button class="menu-icon" aria-label="Menu">
           <span></span>
