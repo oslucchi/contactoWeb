@@ -1,100 +1,76 @@
 <template>
-    <div class="masterdata-bg" :style="rootContainerStyle" @click="deselectRow">
-        <div class="masterdata-content">
-            <!-- Action bar -->
-            <div v-if="anyActionEnabled" class="action-icons">
-                <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
-                    <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
-                </button>
-                <button v-if="featuresEnabled[1]" :disabled="selectedRowId === null" @click.stop="deleteSelectedRow">
-                    <img src="@/assets/icons/recycle-bin.png" alt="Delete" class="icon" />
-                </button>
-                <button v-if="featuresEnabled[2]" @click.stop="addNewItem">
-                    <img src="@/assets/icons/add.png" alt="Add" class="icon" />
-                </button>
-                <button v-if="featuresEnabled[3]" @click.stop="searchElements">
-                    <img src="@/assets/icons/search.png" alt="Search" class="icon" />
-                </button>
-            </div>
+  <div class="masterdata-bg" :style="rootContainerStyle" @click="deselectRow">
+    <div class="masterdata-content">
+      <!-- Action bar -->
+      <div v-if="anyActionEnabled" class="action-icons">
+        <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
+          <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
+        </button>
+        <button v-if="featuresEnabled[1]" :disabled="selectedRowId === null" @click.stop="deleteSelectedRow">
+          <img src="@/assets/icons/recycle-bin.png" alt="Delete" class="icon" />
+        </button>
+        <button v-if="featuresEnabled[2]" @click.stop="addNewItem">
+          <img src="@/assets/icons/add.png" alt="Add" class="icon" />
+        </button>
+        <button v-if="featuresEnabled[3]" @click.stop="searchElements">
+          <img src="@/assets/icons/search.png" alt="Search" class="icon" />
+        </button>
+      </div>
 
-            <div class="masterdata-table-container" :style="{ height: tableHeight + 'px', padding: '2px 2px 0 2px' }">
-                <div class="masterdata-table-header" ref="headerRef">
-                    <table class="masterdata-table">
-                        <colgroup>
-                            <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
-                                :style="{ width: (col.width || 120) + 'px' }" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th v-for="col in visibleColumns" :key="col.idColConfigDetail"
-                                    @click="col.useForSort && handleSort(col.colName)">
-                                    {{ col.showName }}
-                                    <span v-if="sortColumn === col.colName" class="sort-arrow">
-                                        {{ sortDirection === 'asc' ? '▲' : '▼' }}
-                                    </span>
-                                    <span class="col-resizer" @mousedown.stop.prevent="startResize($event, col, i)"
-                                        title="Resize column">
-                                    </span>
-                                </th>
-                            </tr>
-                        </thead>
-                    </table>
-                </div>
-                <div class="masterdata-tbody-scroll" ref="tbodyScroll" @scroll="syncHeaderScroll"
-                    :style="{ height: bodyHeight + 'px' }">
-                    <table class="masterdata-table">
-                        <colgroup>
-                            <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
-                                :style="{ width: (col.width || 120) + 'px' }" />
-                        </colgroup>
-                        <tbody>
-                            <tr 
-                                v-for="(item, rowIdx) in sortedItems" 
-                                :key="getRowIdFromData(item, rowIdx)"
-                                :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }">
-                                <td 
-                                    v-for="col in visibleColumns" :key="col.idColConfigDetail"
-                                    :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && 
-                                                             selectedCell === col.colName && 
-                                                             featuresEnabled[4] }"
-                                    @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? 
-                                                                        selectCell(item, rowIdx, col.colName) : 
-                                                                        selectRow(item, rowIdx)">
-                                    <div 
-                                        v-if="item[col.colName] !== undefined"
-                                        style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;">
-                                        <div 
-                                            v-if="selectedCell === col.colName && featuresEnabled[4]">
-                                            <input 
-                                                class="table-input" v-model="item[col.colName]"
-                                                style="width: 100%;"    
-                                            />
-                                        </div>
-                                        <div v-else class="cell-content" v-ellipsis>
-                                            {{ item[col.colName] !== undefined ? item[col.colName] :
-                                            JSON.stringify(item) }}
-                                        </div>
-                                    </div>
-                                    <div v-else>&nbsp;</div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Edit Modal -->
-            <div v-if="showEditModal" class="modal-overlay" @click.stop>
-                <div class="modal-content">
-                    <button class="modal-close" @click="showEditModal = false">X</button>
-                    <h3>Edit {{ tableConfig.table }}</h3>
-                    <div>
-                        <pre>{{ selectedItem }}</pre>
-                    </div>
-                </div>
-            </div>
+      <!-- table container: use tableHeight prop for an explicit container height -->
+      <div class="masterdata-table-container" :style="{ height: tableHeight + 'px', padding: '2px 2px 0 2px' }">
+        <div class="masterdata-table-header" ref="headerRef">
+          <table class="masterdata-table">
+            <colgroup>
+              <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th v-for="(col, i) in visibleColumns" :key="col.idColConfigDetail" @click="col.useForSort && handleSort(col.colName)">
+                  {{ col.showName }}
+                  <span v-if="sortColumn === col.colName" class="sort-arrow">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span>
+                  <span class="col-resizer" @mousedown.stop.prevent="startResize($event, col, i)" title="Resize column"></span>
+                </th>
+              </tr>
+            </thead>
+          </table>
         </div>
+
+        <div class="masterdata-tbody-scroll" ref="tbodyScroll" @scroll="syncHeaderScroll" :style="{ height: bodyHeight + 'px' }">
+          <table class="masterdata-table">
+            <colgroup>
+              <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
+            </colgroup>
+            <tbody>
+              <tr v-for="(item, rowIdx) in sortedItems" :key="getRowIdFromData(item, rowIdx)" :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }">
+                <td v-for="col in visibleColumns" :key="col.idColConfigDetail" :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
+                    @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)">
+                  <div v-if="item[col.colName] !== undefined" style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;">
+                    <div v-if="selectedCell === col.colName && featuresEnabled[4]">
+                      <input class="table-input" v-model="item[col.colName]" style="width: 100%;" />
+                    </div>
+                    <div v-else class="cell-content" v-ellipsis>
+                      {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
+                    </div>
+                  </div>
+                  <div v-else>&nbsp;</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Edit Modal -->
+      <div v-if="showEditModal" class="modal-overlay" @click.stop>
+        <div class="modal-content">
+          <button class="modal-close" @click="showEditModal = false">X</button>
+          <h3>Edit {{ tableConfig.table }}</h3>
+          <div><pre>{{ selectedItem }}</pre></div>
+        </div>
+      </div>
     </div>
+  </div>
 </template>
 
 <script>
@@ -103,609 +79,364 @@ import { API_BASE_URL } from '@/config/apiConfig';
 import ColConfigHeader from '@/types/ColConfigHeader';
 
 function getClassByName(name) {
-    return require(`@/types/${name}`).default;
+  return require(`@/types/${name}`).default;
 }
 
 function applyEllipsis(el) {
-    // console.log('applyEllipsis called on:', el);
-    // Enforce truncation styles (without relying on inline template styles)
-    el.style.overflow = 'hidden';
-    el.style.textOverflow = 'ellipsis';
-    el.style.whiteSpace = 'nowrap';
-    el.style.display = 'block';
-    el.style.maxWidth = '100%';
-    el.style.boxSizing = 'border-box';
+  el.style.overflow = 'hidden';
+  el.style.textOverflow = 'ellipsis';
+  el.style.whiteSpace = 'nowrap';
+  el.style.display = 'block';
+  el.style.maxWidth = '100%';
+  el.style.boxSizing = 'border-box';
 
-    // Only show tooltip when content is actually truncated
-    // Note: must run after element has a final width
-    if (el.scrollWidth > el.clientWidth) {
-        // Use textContent to avoid duplicating HTML; trim to keep it clean
-        el.setAttribute('title', (el.textContent || '').trim());
-    } else {
-        el.removeAttribute('title');
-    }
+  if (el.scrollWidth > el.clientWidth) {
+    el.setAttribute('title', (el.textContent || '').trim());
+  } else {
+    el.removeAttribute('title');
+  }
 }
 
 export default {
-    name: 'GenericDataViewer',
-    props: {
-        page: { type: String, required: true },
-        element: { type: String, required: true },
-        user: { type: Number, required: true },
-        filter: { type: Object, default: () => ({}) },
-        featuresEnabled: { type: Array, default: () => [false, false, false, false, false] },
-        editCellEnabled: { type: Boolean, default: false },
-        tableHeight: { type: Number, required: true },
-        containerWidth: { type: Number, required: true },
-        preserveRightSpace: { type: Number, default: 0 },
-        capWidth: { type: Number, default: 0 }, // 0 = ignore; >0 = hard cap in px
+  name: 'GenericDataViewer',
+  props: {
+    page: { type: String, required: true },
+    element: { type: String, required: true },
+    user: { type: Number, required: true },
+    filter: { type: Object, default: () => ({}) },
+    featuresEnabled: { type: Array, default: () => [false, false, false, false, false] },
+    editCellEnabled: { type: Boolean, default: false },
+    tableHeight: { type: Number, required: true },
+    containerWidth: { type: Number, required: true },
+    preserveRightSpace: { type: Number, default: 0 },
+    capWidth: { type: Number, default: 0 },
+    listenEvents: { type: Array, default: () => [] },
+    emitOnSelect: { type: [String, Array], default: null },
+  },
+  emits: ['rowSelected'],
+  data() {
+    return {
+      tableConfig: { table: this.element, columns: [] },
+      items: [],
+      selectedRowId: null,
+      selectedCell: null,
+      showEditModal: false,
+      selectedItem: null,
+      sortColumn: null,
+      sortDirection: null,
+      tableRenderKey: 0,
+      rowHeight: 20,
+      localBodyHeight: 0,
+      localTableWidth: 0,
+      effectiveContainerWidth: 0,
+      _externalListeners: [],
+    };
+  },
 
-        // NEW: list of event names (strings) to listen on the root event bus.
-        // When any of these events fires, the component will call reloadData().
-        listenEvents: { type: Array, default: () => [] },
+  mounted() {
+    window.addEventListener('resize', this.calculateTableDimensions);
+    this.calculateTableDimensions();
 
-        // NEW: event name or array of names to emit on selection (in addition to the existing 'rowSelected' emit)
-        // Parent/sibling components can listen on the root event bus ($root) for these events.
-        emitOnSelect: { type: [String, Array], default: null },
+    if (Array.isArray(this.listenEvents) && this.listenEvents.length) {
+      this.listenEvents.forEach(evtName => {
+        const handler = () => { this.reloadData(); };
+        this._externalListeners.push({ evtName, handler });
+        if (this.$root && this.$root.$on) this.$root.$on(evtName, handler);
+      });
+    }
+  },
+
+  beforeDestroy() {
+    window.removeEventListener('resize', this.calculateTableDimensions);
+    if (this._externalListeners && this._externalListeners.length && this.$root && this.$root.$off) {
+      this._externalListeners.forEach(({ evtName, handler }) => {
+        this.$root.$off(evtName, handler);
+      });
+      this._externalListeners = [];
+    }
+  },
+
+  computed: {
+    rootContainerStyle() {
+      if (typeof this.containerWidth === 'number' && this.containerWidth > 0) {
+        return { width: this.containerWidth + 'px', maxWidth: this.containerWidth + 'px' };
+      }
+      return { maxWidth: this.effectiveContainerWidth + 'px', width: '100%' };
     },
-    emits: ['rowSelected'],
-    data() {
-        return {
-            tableConfig: { table: this.element }, // it was null before
-            items: [],
-            selectedRowId: null,
-            selectedCell: null,
-            showEditModal: false,
-            selectedItem: null,
-            sortColumn: null,
-            sortDirection: null,
-            tableRenderKey: 0,
-            rowHeight: 20,
-            localBodyHeight: 0,
-            localTableWidth: 0,
-            effectiveContainerWidth: 0,
-
-            // internal registry of external listeners so we can remove them on destroy
-            _externalListeners: [],
-        };
+    anyActionEnabled() { return this.featuresEnabled.some(f => f); },
+    bodyHeight() { return this.localBodyHeight || (this.tableHeight - 28); },
+    visibleColumns() {
+      var cols = (this.tableConfig && Array.isArray(this.tableConfig.columns)) ? this.tableConfig.columns : [];
+      return cols.filter(col => (col.visible === 1 || col.visible === '1' || col.visible === true || col.visible === 'Y' || col.visible === 'y'))
+                 .sort((a,b)=> (a.position||0)-(b.position||0));
     },
+    sortedItems() {
+      if (!this.sortColumn || !this.sortDirection) return this.items;
+      let sorted = [...this.items];
+      sorted.sort((a,b)=>{
+        let valA = a[this.sortColumn] || '';
+        let valB = b[this.sortColumn] || '';
+        if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+      return sorted;
+    },
+    itemIdField() {
+      if (!this.tableConfig || !this.tableConfig.columns) return null;
+      let idCol = this.tableConfig.columns.find(col => col.colName && col.colName.toLowerCase().startsWith('id'));
+      if (!idCol) idCol = this.tableConfig.columns.find(col => col.position === 0);
+      return idCol ? idCol.colName : null;
+    },
+  },
 
-    mounted() {
-        // Optionally, add resize event listener to recalculate sizes
-        window.addEventListener('resize', this.calculateTableDimensions);
+  async created() {
+    try {
+      const configRes = await axios.get(`${API_BASE_URL}/utility/browserData`, {
+        params: { page: this.page, element: this.element, user: this.user }
+      });
+      const cfg = configRes && configRes.data ? configRes.data : null;
+      if (!cfg || (cfg.columns && !Array.isArray(cfg.columns))) {
+        console.warn('browserData returned invalid config:', cfg);
+        this.tableConfig = { table: this.element, columns: [], cliClassName: null, restModuleName: null, dataCollectMethod: null };
+        return;
+      }
+      this.tableConfig = new ColConfigHeader(cfg);
+      if (!this.tableConfig.cliClassName || !this.tableConfig.restModuleName || !this.tableConfig.dataCollectMethod) {
+        console.warn('Missing required config fields:', this.tableConfig);
+        return;
+      }
+
+      const ClassType = getClassByName(this.tableConfig.cliClassName);
+      const queryParms = { ...(this.filter || {}), rawData: true };
+      const dataRes = await axios.get(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, { params: queryParms });
+
+      this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
+        const item = obj instanceof ClassType ? obj : new ClassType(obj);
+        (this.tableConfig.columns || []).forEach(col => { if (!(col.colName in item)) item[col.colName] = ''; });
+        return item;
+      }) : [];
+
+      this.$nextTick(() => {
         this.calculateTableDimensions();
-        // console.log('Mounted with containerWidth:', this.containerWidth);
+        if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
+      });
+    } catch (err) {
+      console.error('created() failed:', err);
+      this.tableConfig = this.tableConfig || { table: this.element, columns: [] };
+      this.items = [];
+    }
+  },
 
-        // Register root event listeners (if any) to trigger reloadData
-        if (Array.isArray(this.listenEvents) && this.listenEvents.length) {
-            this.listenEvents.forEach(evtName => {
-                const handler = (...args) => {
-                    // allow optional payload handling in future; for now just reload
-                    this.reloadData();
-                };
-                this._externalListeners.push({ evtName, handler });
-                if (this.$root && this.$root.$on) {
-                    this.$root.$on(evtName, handler);
-                }
-            });
+  directives: {
+    ellipsis: {
+      inserted(el) { applyEllipsis(el); },
+      componentUpdated(el) { applyEllipsis(el); }
+    }
+  },
+
+  methods: {
+    calculateTableDimensions() {
+      var parentWidth = (this.$el && this.$el.parentElement && this.$el.parentElement.offsetWidth) || 0;
+      var screenW = window.innerWidth || document.documentElement.clientWidth || parentWidth || 0;
+      var specified;
+      if (typeof this.containerWidth === 'number' && this.containerWidth > 0) {
+        specified = this.containerWidth;
+      } else {
+        specified = (typeof this.capWidth === 'number' && this.capWidth > 0) ? this.capWidth : (parentWidth || screenW);
+      }
+
+      var headerH = 28;
+      if (this.$refs && this.$refs.headerRef && this.$refs.headerRef.offsetHeight) headerH = this.$refs.headerRef.offsetHeight;
+      var containerPadV = 2 + 0;
+      var scrollbarReserve = 4;
+
+      this.localBodyHeight = Math.max(0, this.tableHeight - headerH - containerPadV - scrollbarReserve);
+
+      var preserve = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? 0 : Math.max(0, this.preserveRightSpace || 0);
+      var minOfTwo = Math.min(specified, screenW);
+      this.effectiveContainerWidth = Math.max(0, minOfTwo - preserve);
+
+      var totalColWidth = this.visibleColumns.reduce(function(sum, col) { return sum + (col.width || 120); }, 0);
+      this.localTableWidth = Math.max(parentWidth, totalColWidth);
+
+      this.refreshEllipsis();
+
+      this.$nextTick(() => {
+        const body = this.$refs && this.$refs.tbodyScroll;
+        const header = this.$refs && this.$refs.headerRef;
+        if (body && header) {
+          const sb = body.offsetWidth - body.clientWidth;
+          header.style.paddingRight = sb > 0 ? sb + 'px' : '0px';
         }
+      });
     },
 
-    watch: {
-        // when filter prop changes, reload data automatically
-        filter: {
-            handler() {
-                this.reloadData();
-        },
-        deep: true,
-        },
+    getRowIdFromData(item, rowIdx) {
+      if (!this.tableConfig || !this.tableConfig.columns) return rowIdx;
+      const idValue = item[this.itemIdField];
+      return idValue || rowIdx;
     },
-    
-    // ensure we unregister listeners and cleanup
-    beforeDestroy() {
-        window.removeEventListener('resize', this.calculateTableDimensions);
-        if (this._externalListeners && this._externalListeners.length && this.$root && this.$root.$off) {
-            this._externalListeners.forEach(({ evtName, handler }) => {
-                this.$root.$off(evtName, handler);
-            });
-            this._externalListeners = [];
+
+    emitStructuredSelection(item, rowIdx) {
+      const id = this.getRowIdFromData(item, rowIdx);
+      const elementName = this.element ? this.element : (this.tableConfig && this.tableConfig.element ? this.tableConfig.element : null);
+      const payload = { element: elementName, idField: this.itemIdField || null, id, item };
+      this.$emit('rowSelected', payload);
+    },
+
+    selectRow(item, rowIdx) {
+      try {
+        this.selectedRowId = this.getRowIdFromData(item, rowIdx);
+        this.selectedItem = item;
+      } catch (error) {
+        this.selectedRowId = null;
+        this.selectedItem = item || null;
+      }
+      this.selectedCell = null;
+      this.tableRenderKey++;
+      this.enableCellEdit = false;
+      this.emitStructuredSelection(item, rowIdx);
+    },
+
+    selectCell(item, rowIdx, colName) {
+      this.selectedCell = colName;
+      this.selectedItem = item;
+      this.tableRenderKey++;
+      // Note: per requirement, do NOT emit rowSelected from selectCell
+    },
+
+    refreshEllipsis() {
+      const runner = (cb) => {
+        if (typeof window.requestIdleCallback === 'function') {
+          window.requestIdleCallback(cb, { timeout: 200 });
+        } else {
+          window.requestAnimationFrame(cb);
         }
+      };
+      runner(() => {
+        if (!this.$el) return;
+        const nodes = this.$el.querySelectorAll('.cell-content');
+        if (nodes && nodes.length) nodes.forEach(applyEllipsis);
+      });
     },
 
-    computed: {
-        rootContainerStyle() {
-            // If parent supplied a containerWidth explicitly, use it directly so
-            // the component spans that area exactly (ignore preserveRightSpace).
-            if (typeof this.containerWidth === 'number' && this.containerWidth > 0) {
-                return {
-                    width: this.containerWidth + 'px',
-                    maxWidth: this.containerWidth + 'px'
-                };
-            }
-
-            // Otherwise use the effectiveContainerWidth computed by layout logic
-            return {
-                maxWidth: this.effectiveContainerWidth + 'px',
-                width: '100%',
-            };
-        },
-
-        anyActionEnabled() {
-            return this.featuresEnabled.some(f => f);
-        },
-
-        paddedItems() {
-            const rowsToShow = 10; // Or calculate based on container/table height
-            const items = this.sortedItems.slice(0, rowsToShow);
-            while (items.length < rowsToShow) {
-                items.push({});
-            }
-            return items;
-        },
-
-        // Total width of columns (used only for logic if needed)
-        tableWidth() {
-            if (this.localTableWidth) return this.localTableWidth;
-            // fallback: compute dynamically if needed
-            if (!this.visibleColumns.length) return 0;
-            return this.visibleColumns.reduce((sum, col) => sum + (col.width || 120), 0);
-        },
-
-        // Body height = full tableHeight minus an estimated header block
-        bodyHeight() {
-            return this.localBodyHeight || (this.tableHeight - 28);
-        },
-
-        visibleColumns() {
-            var cols = (this.tableConfig && Array.isArray(this.tableConfig.columns)) ?
-                this.tableConfig.columns
-                :
-                [];
-            if (!this.tableConfig) return [];
-            return cols
-                .filter(col => (col.visible === 1 ||
-                    col.visible === '1' ||
-                    col.visible === true ||
-                    col.visible === 'Y' ||
-                    col.visible === 'y'))
-                .sort((a, b) => (a.position || 0) - (b.position || 0));
-        },
-
-        sortedItems() {
-            if (!this.sortColumn || !this.sortDirection) 
-            {
-                return this.items;
-            }
-            let sorted = [...this.items];
-            sorted.sort((a, b) => {
-                let valA = a[this.sortColumn] || '';
-                let valB = b[this.sortColumn] || '';
-                if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
-                if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
-                return 0;
-            });
-            return sorted;
-        },
-
-        itemIdField() {
-            if (!this.tableConfig || !this.tableConfig.columns) return null;
-            let idCol = this.tableConfig.columns.find(col => col.colName && col.colName.toLowerCase().startsWith('id'));
-            if (!idCol) {
-                idCol = this.tableConfig.columns.find(col => col.position === 0);
-            }
-            return idCol ? idCol.colName : null;
-        },
+    syncHeaderScroll(e) {
+      const scrollLeft = e.target.scrollLeft;
+      const header = this.$refs && this.$refs.headerRef;
+      if (header) {
+        const headerTable = header.querySelector('table');
+        if (headerTable) headerTable.style.transform = `translateX(${-scrollLeft}px)`;
+      }
+      const sb = e.target.offsetWidth - e.target.clientWidth;
+      if (header) header.style.paddingRight = sb > 0 ? sb + 'px' : '0px';
     },
 
-    async created() {
-        try {
-            const configRes = await axios.get(`${API_BASE_URL}/utility/browserData`, {
-                params: { page: this.page, element: this.element, user: this.user }
-            });
+    startResize(evt, col, index) {
+      if (!col) return;
+      const startX = evt.pageX;
+      const startWidth = Number(col.width) || 120;
+      const minW = 40;
+      const maxW = 1200;
+      const body = document.body;
+      const oldCursor = body.style.cursor;
+      body.style.cursor = 'col-resize';
 
-            const cfg = configRes && configRes.data ? configRes.data : null;
-            if (!cfg || (cfg.columns && !Array.isArray(cfg.columns))) {
-                // invalid or null config from backend -> keep component safe and visible
-                console.warn('browserData returned invalid config:', cfg);
-                this.tableConfig = { table: this.element, columns: [], cliClassName: null, restModuleName: null, dataCollectMethod: null };
-                // optionally skip data fetch since there are no columns to render
-                return;
-            }
-
-            this.tableConfig = new ColConfigHeader(cfg);
-
-            // guard the rest too, since subsequent lines depend on these fields
-            if (!this.tableConfig.cliClassName || !this.tableConfig.restModuleName || !this.tableConfig.dataCollectMethod) {
-                console.warn('Missing required config fields:', this.tableConfig);
-                return;
-            }
-
-            const ClassType = getClassByName(this.tableConfig.cliClassName);
-            const queryParms = {
-                ...(this.filter || {}),
-                rawData: true,
-            }
-            const dataRes = await axios.get(
-                `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`,
-                { params: queryParms }
-            );
-
-            this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
-                const item = obj instanceof ClassType ? obj : new ClassType(obj);
-                (this.tableConfig.columns || []).forEach(col => {
-                    if (!(col.colName in item)) item[col.colName] = '';
-                });
-                return item;
-            }) : [];
-
-            this.$nextTick(() => {
-                this.calculateTableDimensions();
-                if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
-            });
-
-
-        } catch (err) {
-            console.error('created() failed:', err);
-            // keep the component alive with a safe default
-            this.tableConfig = this.tableConfig || { table: this.element, columns: [] };
-            this.items = [];
+      const onMove = (e) => {
+        const delta = e.pageX - startX;
+        let next = Math.max(minW, Math.min(maxW, startWidth + delta));
+        col.width = Math.round(next);
+        if (this.$refs && this.$refs.tbodyScroll) {
+          const sb = this.$refs.tbodyScroll.offsetWidth - this.$refs.tbodyScroll.clientWidth;
+          if (this.$refs.headerRef) this.$refs.headerRef.style.paddingRight = sb > 0 ? sb + 'px' : '0px';
         }
+        this.refreshEllipsis();
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        body.style.cursor = oldCursor || '';
+        this.$nextTick(() => { this.calculateTableDimensions(); this.refreshEllipsis(); });
+        if (typeof this.saveColConfig === 'function') this.saveColConfig({ ...col });
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     },
-    directives: {
-        ellipsis: {
-            inserted(el) { applyEllipsis(el); },
-            componentUpdated(el) { applyEllipsis(el); }
-        }
+
+    async reloadData() {
+      if (!this.tableConfig) return;
+      const ClassType = getClassByName(this.tableConfig.cliClassName);
+      const dataRes = await axios.get(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, { params: this.filter });
+      this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
+        const item = obj instanceof ClassType ? obj : new ClassType(obj);
+        (this.tableConfig.columns || []).forEach(col => { if (!(col.colName in item)) item[col.colName] = ''; });
+        return item;
+      }) : [];
+
+      this.$nextTick(() => {
+        this.calculateTableDimensions();
+        if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
+      });
+
+      if (typeof this.loadData === 'function') {
+        try { this.loadData(); } catch (e) { console.warn('loadData failed', e); }
+      }
     },
-    methods: {
-        // unified payload emitter (always emits 'rowSelected' to parent)
-        emitStructuredSelection(item, rowIdx) {
-            const id = this.getRowIdFromData(item, rowIdx);
 
-            // avoid optional chaining to remain toolchain-compatible
-            const elementName = this.element
-                    ? this.element
-                    : (this.tableConfig && this.tableConfig.element ? this.tableConfig.element : null);
-
-            const payload = {
-                element: elementName,
-                idField: this.itemIdField || null,
-                id,
-                item,
-            };
-
-            // 1) emit single, generic event for parent: always present
-            this.$emit('rowSelected', payload);
-    /*
-            // 2) optionally also emit named events on component (so parent could use @companySelected)
-            if (this.emitOnSelect) {
-                const evts = Array.isArray(this.emitOnSelect) ? this.emitOnSelect : [this.emitOnSelect];
-                evts.forEach((name) => {
-                if (typeof name === 'string' && name.length) {
-                    // component event
-                    this.$emit(name, payload);
-                    // broadcast to global/root for siblings if needed
-                    if (this.$root && typeof this.$root.$emit === 'function') {
-                    this.$root.$emit(name, payload);
-                    }
-                }
-                });
-            }
-    */
-        },
-
-        refreshEllipsis() {
-            const runner = (cb) => {
-                if (typeof window.requestIdleCallback === 'function') {
-                    window.requestIdleCallback(cb, { timeout: 200 });
-                } else {
-                    window.requestAnimationFrame(cb);
-                }
-            };
-
-            runner(() => {
-                if (!this.$el) return;
-                const nodes = this.$el.querySelectorAll('.cell-content');
-                if (nodes && nodes.length) nodes.forEach(applyEllipsis);
-            });
-        },
-
-        syncHeaderScroll(e) {
-            const scrollLeft = e.target.scrollLeft;
-            const header = this.$refs && this.$refs.headerRef;
-            if (header) {
-                const headerTable = header.querySelector('table');
-                if (headerTable) {
-                    headerTable.style.transform = `translateX(${-scrollLeft}px)`;
-                }
-            }
-            // keep header and body content widths aligned when vertical scrollbar appears
-            const sb = e.target.offsetWidth - e.target.clientWidth; // scrollbar width
-            header.style.paddingRight = sb > 0 ? sb + 'px' : '0px';
-        },
-
-        calculateTableDimensions() {
-            // Parent width (fallback to 0)
-            var parentWidth = (this.$el && this.$el.parentElement && this.$el.parentElement.offsetWidth) || 0;
-
-            // Compute screen and specified widths first (declare BEFORE use)
-            var screenW = window.innerWidth || document.documentElement.clientWidth || parentWidth || 0;
-            // If parent explicitly provided containerWidth, use it as the effective width
-            var specified;
-            if (typeof this.containerWidth === 'number' && this.containerWidth > 0) {
-                specified = this.containerWidth;
-            } else {
-                // Prefer a fixed capWidth if provided; otherwise fall back to parent or screen width
-                specified = (typeof this.capWidth === 'number' && this.capWidth > 0) ? this.capWidth : (parentWidth || screenW);
-            }
-
-            // Header height (fallback ~28)
-            var headerH = 28;
-            if (this.$refs && this.$refs.headerRef && this.$refs.headerRef.offsetHeight) {
-                headerH = this.$refs.headerRef.offsetHeight;
-            }
-
-            // Container vertical padding: top 2px + bottom 0px (per your template)
-            var containerPadV = 2 + 0;
-
-            // Reserve a few px so last row isn't hidden under the horizontal scrollbar
-            var scrollbarReserve = 4;
-
-            // Visible tbody height
-            this.localBodyHeight = Math.max(
-                0,
-                this.tableHeight - headerH - containerPadV - scrollbarReserve
-            );
-
-            // Effective max width for the outer container:
-            // - If containerWidth was provided we already set 'specified' to it and we should not
-            //   subtract preserveRightSpace (parent requested explicit width).
-            // - Otherwise subtract preserveRightSpace if present.
-            var preserve = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? 0 : Math.max(0, this.preserveRightSpace || 0);
-            var minOfTwo = Math.min(specified, screenW);
-            this.effectiveContainerWidth = Math.max(0, minOfTwo - preserve);
-
-            // Table width: grow to fit columns, but not smaller than parent
-            var totalColWidth = this.visibleColumns.reduce(function (sum, col) {
-                return sum + (col.width || 120);
-            }, 0);
-            this.localTableWidth = Math.max(parentWidth, totalColWidth);
-
-            this.refreshEllipsis();
-
-            // ALSO set header padding once at layout time:
-            this.$nextTick(() => {
-                const body = this.$refs && this.$refs.tbodyScroll;
-                const header = this.$refs && this.$refs.headerRef;
-                if (body && header) {
-                    const sb = body.offsetWidth - body.clientWidth;
-                    header.style.paddingRight = sb > 0 ? sb + 'px' : '0px';
-                }
-            });
-            // (Optional) debug:
-            // console.log('calc dims -> parentWidth:', parentWidth, 'screenW:', screenW, 'specified:', specified, 'preserve:', preserve, 'effW:', this.effectiveContainerWidth, 'bodyH:', this.localBodyHeight);
-        },
-
-        getRowIdFromData(item, rowIdx) {
-            if (!this.tableConfig || !this.tableConfig.columns) 
-            {
-                return rowIdx;
-            }   
-            const idValue = item[this.itemIdField];
-            return idValue || rowIdx;
-        },
-
-        enableCellEdit(rowIdx, colName) {
-            // Only enable edit if the row is already selected
-            if (this.selectedRowId === this.getRowIdFromData(this.sortedItems[rowIdx], rowIdx)) {
-                this.selectedCell = colName;
-            }
-        },
-
-        selectRow(item, rowIdx) {
-            console.log(`${this.element} selectRow called: ${item.idColConfigDetail}, ${item.colName}, ${rowIdx}`);
-            try {
-                this.selectedRowId = this.getRowIdFromData(item, rowIdx);
-                this.selectedItem = item;
-            } 
-            catch (error) {
-                this.selectedRowId = null
-                this.selectedItem = item || null;   
-            }
-
-            this.selectedCell = null;
-            this.tableRenderKey++;
-            this.enableCellEdit = false;
-            console.log(`this.selectedRowId: ${this.selectedRowId}, this.selectedItem: ${JSON.stringify(this.selectedItem)}`);
-
-            this.emitStructuredSelection(item, rowIdx);
-        },
-
-        selectCell(item, rowIdx, colName) {
-            console.log('selectCell called:',
-                            this.enableCellEdit, item.colName, rowIdx, colName);
-            this.selectedCell = colName;
-            this.selectedItem = item;
-/*
-            if (this.tableConfig && this.tableConfig.element && 
-                        this.tableConfig.element.toLowerCase() === 'company') {
-                this.$emit('rowSelected', this.selectedItem);
-                // also propagate via root events if requested
-                
-                if (this.emitOnSelect) {
-                    const evts = Array.isArray(this.emitOnSelect) ? this.emitOnSelect : [this.emitOnSelect];
-                    evts.forEach(name => {
-                        if (this.$root && this.$root.$emit) {
-                            this.$root.$emit(name, this.selectedItem);
-                        }
-                    });
-                }
-            }
-            this.emitSelectionEvents(item, rowIdx);
-*/
-            this.tableRenderKey++;
-        },
-
-        getInputType(val) {
-            if (typeof val === 'number') return 'number';
-            if (typeof val === 'string' && val.includes('@')) return 'email';
-            return 'text';
-        },
-        saveItem(item) {
-            axios.put(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${item[this.itemIdField]}`, item)
-                .catch(() => alert('Error saving item'));
-        },
-        openEditModal() {
-            if (this.selectedRowId !== null) {
-                this.selectedItem = this.items.find(item => this.getRowIdFromData(item) === this.selectedRowId);
-                this.showEditModal = true;
-            }
-        },
-        deleteSelectedRow() {
-            if (this.selectedRowId !== null) {
-                const item = this.items.find(item => this.getRowIdFromData(item) === this.selectedRowId);
-                if (confirm(`Delete ${this.tableConfig.element} ${item[this.visibleColumns[0].colName]}?`)) {
-                    axios.delete(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${item[this.itemIdField]}`).then(() => {
-                        this.items = this.items.filter(i => this.getRowIdFromData(i) !== this.selectedRowId);
-                        this.selectedRowId = null;
-                        this.selectedCell = null;
-                        this.selectedItem = null;
-                    });
-                }
-            }
-        },
-        async addNewItem() {
-            const ClassType = getClassByName(this.tableConfig.cliClassName);
-            const newItem = new ClassType();
-            const res = await axios.post(`${API_BASE_URL}/${this.tableConfig.restModuleName}/create`, newItem);
-            this.items.push(res.data);
-            this.selectedRowId = this.getRowIdFromData(res.data, this.items.length - 1);
-            this.selectedCell = this.visibleColumns[0].colName;
-            this.selectedItem = res.data;
-        },
-        searchElements() {
-            const searchTerm = prompt('Enter search term:');
-            if (searchTerm !== null) {
-                this.filter = { ...this.filter, searchFor: searchTerm };
-                this.reloadData();
-            }
-        },
-        deselectRow() {
+    // CRUD helpers (save/delete/add/search/deselect) unchanged...
+    saveItem(item) {
+      axios.put(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${item[this.itemIdField]}`, item).catch(() => alert('Error saving item'));
+    },
+    openEditModal() {
+      if (this.selectedRowId !== null) {
+        this.selectedItem = this.items.find(item => this.getRowIdFromData(item) === this.selectedRowId);
+        this.showEditModal = true;
+      }
+    },
+    deleteSelectedRow() {
+      if (this.selectedRowId !== null) {
+        const item = this.items.find(item => this.getRowIdFromData(item) === this.selectedRowId);
+        if (confirm(`Delete ${this.tableConfig.element} ${item[this.visibleColumns[0].colName]}?`)) {
+          axios.delete(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${item[this.itemIdField]}`).then(() => {
+            this.items = this.items.filter(i => this.getRowIdFromData(i) !== this.selectedRowId);
             this.selectedRowId = null;
             this.selectedCell = null;
             this.selectedItem = null;
-        },
-        handleSort(column) {
-            if (this.sortColumn !== column) {
-                this.sortColumn = column;
-                this.sortDirection = 'asc';
-            } else if (this.sortDirection === 'asc') {
-                this.sortDirection = 'desc';
-            } else if (this.sortDirection === 'desc') {
-                this.sortColumn = null;
-                this.sortDirection = null;
-            } else {
-                this.sortDirection = 'asc';
-            }
-        },
-        startResize(evt, col, index) {
-            // guard
-            if (!col) return;
-
-            const startX = evt.pageX;
-            const startWidth = Number(col.width) || 120;
-            const minW = 40;            // hard minimum
-            const maxW = 1200;          // sanity cap; adjust if needed
-
-            // show resizing cursor globally
-            const body = document.body;
-            const oldCursor = body.style.cursor;
-            body.style.cursor = 'col-resize';
-
-            const onMove = (e) => {
-                const delta = e.pageX - startX;
-                let next = Math.max(minW, Math.min(maxW, startWidth + delta));
-                // changing col.width updates BOTH colgroups because it's reactive
-                col.width = Math.round(next);
-
-                // keep layout + tooltips fresh while dragging
-                if (this.$refs && this.$refs.tbodyScroll) {
-                    const sb = this.$refs.tbodyScroll.offsetWidth - this.$refs.tbodyScroll.clientWidth;
-                    if (this.$refs.headerRef) {
-                        this.$refs.headerRef.style.paddingRight = sb > 0 ? sb + 'px' : '0px';
-                    }
-                }
-                this.refreshEllipsis();
-            };
-
-            const onUp = () => {
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-                body.style.cursor = oldCursor || '';
-
-                // reflow sizes once at the end
-                this.$nextTick(() => {
-                    this.calculateTableDimensions();
-                    this.refreshEllipsis();
-                });
-
-                // persist the column width (optional; keep if you store per-user config)
-                if (typeof this.saveColConfig === 'function') {
-                    this.saveColConfig({ ...col });
-                }
-            };
-
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-        },
-
-        async saveColConfig(colConfigDetail) {
-            // no-op if your backend isn’t ready; keep to match earlier versions
-            try {
-                await axios.put(
-                    `${API_BASE_URL}/utility/colConfigDetail/${colConfigDetail.idColConfigDetail}`,
-                    colConfigDetail
-                );
-            } catch (e) {
-                // quiet fail to avoid UX noise; use console if you prefer
-                // console.warn('saveColConfig failed', e);
-            }
-        },
-
-        async reloadData() {
-            if (!this.tableConfig) return;
-            const ClassType = getClassByName(this.tableConfig.cliClassName);
-            const dataRes = await axios.get(
-                `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`,
-                { params: this.filter }
-            );
-            this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
-                const item = obj instanceof ClassType ? obj : new ClassType(obj);
-                this.tableConfig.columns.forEach(col => {
-                    if (!(col.colName in item)) item[col.colName] = '';
-                });
-                return item;
-            }) : [];
-
-            // ⬇️ Trigger layout recalculation AFTER DOM updates
-            this.$nextTick(() => {
-                this.calculateTableDimensions();
-                if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
-            });
-
-            this.loadData();
-
-        },
-    },
-    watch: {
-        filter: {
-            handler(newFilter, oldFilter) {
-                this.reloadData();
-            },
-            deep: true
+          });
         }
+      }
+    },
+    async addNewItem() {
+      const ClassType = getClassByName(this.tableConfig.cliClassName);
+      const newItem = new ClassType();
+      const res = await axios.post(`${API_BASE_URL}/${this.tableConfig.restModuleName}/create`, newItem);
+      this.items.push(res.data);
+      this.selectedRowId = this.getRowIdFromData(res.data, this.items.length - 1);
+      this.selectedCell = this.visibleColumns[0].colName;
+      this.selectedItem = res.data;
+    },
+    searchElements() {
+      const searchTerm = prompt('Enter search term:');
+      if (searchTerm !== null) {
+        this.filter = { ...this.filter, searchFor: searchTerm };
+        this.reloadData();
+      }
+    },
+    deselectRow() { this.selectedRowId = null; this.selectedCell = null; this.selectedItem = null; },
+  },
+
+  watch: {
+    tableHeight(newVal) {
+      this.$nextTick(() => { if (typeof this.calculateTableDimensions === 'function') this.calculateTableDimensions(); });
+    },
+    filter: {
+      handler(newFilter) { if (typeof this.reloadData === 'function') this.reloadData(); },
+      deep: true
     }
-}
+  }
+};
 </script>
 
 <style scoped>
@@ -741,16 +472,36 @@ export default {
 }
 
 .masterdata-content {
-    flex: 1;
-    width: 100%;
+    position: relative;             /* ensure z-index and shadow render correctly */
+    z-index: 2;
+    /* flex: 1; */
     display: flex;
     flex-direction: column;
-    padding-bottom: 24px;
+    /* padding-bottom: 24px; */
     min-height: 0;
-    /* critical for nested flex + scroll */
     min-width: 0;
-    /* critical in flex layouts to allow overflow/scroll */
-    border: rgba(0, 0, 0, 0.1) 2px solid;
+    background-clip: padding-box;   /* avoid border being overlapped by children */
+
+    width: 100%;
+    box-sizing: border-box;
+
+    /* keep a subtle outer border but add an inset right edge so it's always visible */
+    border: 1px solid rgba(0, 0, 0, 0.6);
+    box-shadow: inset -1px 0 0 rgba(0,0,0,0.12); /* reliable right border visual */
+}
+/* ensure the scrolling element inside the viewer shows a native scrollbar */
+.masterdata-scroll,
+.masterdata-table-container,
+.masterdata-inner {
+  min-height: 0;      /* avoid flex overflow issues */
+  overflow-y: auto;   /* show vertical scrollbar when needed */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* if the parent section had a border that could overlap, keep the viewer above it */
+.generic-data-viewer-root { /* adjust the actual root class name if different */
+  position: relative;
+  z-index: 2;
 }
 
 .masterdata-table-container {

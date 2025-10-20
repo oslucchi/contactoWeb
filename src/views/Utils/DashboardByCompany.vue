@@ -1,68 +1,33 @@
-<!-- filepath: /share/sources/Contacto/cantactoWeb/src/views/DashboardByCompany.vue -->
 <template>
     <div class="dashboard-layout">
-        <div class="company-data" :style="{ width: '70%', maxWidth: '1300px'}">
-            <!-- Top: Companies -->
-            <section class="dashboard-block companies-block"
-                     :style="{ maxHeight: '400px', height: '400px' }">
-                <GenericDataViewer 
-                    page="dashboard" 
-                    element="Company" 
-                    :user="userId"
-                    :filter="{ searchFor: '' }"
-                    :featuresEnabled="[false, false, false, true, true]"
-                    :tableHeight=400
-                    :emitOnSelect="companySelected"
-                    @rowSelected="onCompanySelected" />
+        <div class="company-data" :style="{ width: '70%', maxWidth: '1300px' }">
+            <!-- Companies -->
+            <section ref="companiesSection" class="dashboard-block companies-block" :style="{ height: companiesHeight + 'px' }">
+                <GenericDataViewer ref="companyViewer" page="dashboard" element="Company" :user="userId"
+                    :filter="{ searchFor: '' }" :featuresEnabled="[false, false, false, true, true]"
+                    :tableHeight="companiesHeight" :containerWidth="mainAreaWidth" @rowSelected="onCompanySelected" />
             </section>
-                    <!-- :containerWidth="mainAreaWidth" -->
 
-            <section class="dashboard-block branches-block"
-                    :style="{ maxHeight: '120px', height: '120px' }">
-                <GenericDataViewer
-                    page="dashboard"
-                    element="Branch"
-                    :user="userId"
-                    :filter="companyFilter"
-                    :featuresEnabled="[false, false, false, false, false]"
-                    :tableHeight=120
-                    :emitOnSelect="branchSelected"
-                    @rowSelected="onBranchSelected" />
-            </section>
-            <section class="dashboard-block persons-block"
-                    :style="{ maxHeight: '240px', height: '240px' }">
+            <!-- Divider -->
+            <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('companies-branches', $event)"></div>
 
-                <GenericDataViewer
-                    page="dashboard"
-                    element="Person"
-                    :user="userId"
-                    :filter="companyFilter"
-                    :featuresEnabled="[false, false, false, false, false]"
-                    :tableHeight=240
-                    :emitOnSelect="personSelected"
-                    @rowSelected="onPersonSelected" />
+            <!-- Branches -->
+            <section ref="branchesSection" class="dashboard-block branches-block" :style="{ height: branchesHeight + 'px' }">
+                <GenericDataViewer ref="branchViewer" page="dashboard" element="Branch" :user="userId"
+                    :filter="companyFilter" :featuresEnabled="[false, false, false, false, false]"
+                    :tableHeight="branchesHeight" :containerWidth="mainAreaWidth" @rowSelected="onBranchSelected" />
             </section>
-    <!--
-      <section class="dashboard-block projects-block">
-        <GenericDataViewer
-          page="dashboard"
-          element="project"
-          :user="userId"
-          :filter="companyFilter"
-        />
-      </section>
-      -->
+
+            <!-- Divider -->
+            <div class="divider" ref="divider2" @pointerdown.prevent="startDrag('branches-persons', $event)"></div>
+
+            <!-- Persons -->
+            <section ref="personsSection" class="dashboard-block persons-block" :style="{ height: personsHeight + 'px' }">
+                <GenericDataViewer ref="personViewer" page="dashboard" element="Person" :user="userId"
+                    :filter="companyFilter" :featuresEnabled="[false, false, false, false, false]"
+                    :tableHeight="personsHeight" :containerWidth="mainAreaWidth" @rowSelected="onPersonSelected" />
+            </section>
         </div>
-        <!-- 
-    <aside class="events-block">
-      <GenericDataViewer
-        page="dashboard"
-        element="event"
-        :user="userId"
-        :filter="companyFilter"
-      />
-    </aside>
-Right: Events -->
     </div>
 </template>
 
@@ -70,121 +35,268 @@ Right: Events -->
 import GenericDataViewer from '@/views/Utils/GenericDataViewer.vue';
 
 export default {
-    components: {
-        GenericDataViewer
-    },
+    components: { GenericDataViewer },
     data() {
         return {
-            userId: 1, // Replace with actual user logic
+            userId: 1,
             selectedCompany: null,
-            companyFilter: { id: -1 } ,
+            selectedBranch: null,
+            companyFilter: { id: -1 },
             branchFilter: { id: -1 },
+
+            companiesHeight: 400,
+            branchesHeight: 120,
+            personsHeight: 240,
+
+            // drag state
+            _dragging: null,
+            _pointerId: null,
+            _lastY: null,            // <-- incremental approach
+            minSectionHeight: 80,
+
+            // RAF throttle (kept for compatibility but not required)
+            _rafPending: null,
+
             sidebarWidth: 400,
-            mainAreaWidth: window.innerWidth - 400 - 10
+            mainAreaWidth: window.innerWidth - 400 - 10,
         };
     },
     mounted() {
-        window.addEventListener('resize', this.handleResize);
+        this._boundHandleResize = this.handleResize.bind(this);
+        window.addEventListener('resize', this._boundHandleResize);
         this.handleResize();
     },
     beforeDestroy() {
-        window.removeEventListener('resize', this.handleResize);
+        if (this._boundHandleResize) window.removeEventListener('resize', this._boundHandleResize);
+        this._removePointerListeners();
+        if (this._rafPending) cancelAnimationFrame(this._rafPending);
     },
     methods: {
         handleResize() {
             this.mainAreaWidth = window.innerWidth - this.sidebarWidth - 10;
+            this.$nextTick(() => this._callChildrenCalc());
         },
 
-        // payload is the structured object emitted by GenericDataViewer:
-        // { element, idField, id, item }
         onCompanySelected(payload) {
-            console.log('onCompanySelected payload:', payload);
             const id = payload && payload.id ? payload.id : null;
-            this.selectedCompany = payload ? payload.item : null;
+            this.selectedCompany = payload && payload.item ? payload.item : null;
             this.companyFilter = id ? { id } : { id: -1 };
 
-            // reset branch/person selection
+            if (id) {
+                this.branchFilter = { idCompany: id, companyId: id };
+            } else {
+                this.branchFilter = { id: -1 };
+            }
+
             this.selectedBranch = null;
-            this.branchFilter = { id: -1 };
-            console.log('called onCompanySelected:', this.selectedCompany);
+
+            this.$nextTick(() => {
+                try {
+                    if (this.$refs.personViewer && typeof this.$refs.personViewer.reloadData === 'function') {
+                        this.$refs.personViewer.reloadData();
+                    } else if (this.$refs.personViewer && typeof this.$refs.personViewer.calculateTableDimensions === 'function') {
+                        this.$refs.personViewer.calculateTableDimensions();
+                    }
+                } catch (e) {
+                    console.warn('person refresh failed', e);
+                }
+            });
         },
 
         onBranchSelected(payload) {
             const id = payload && payload.id ? payload.id : null;
-            this.selectedBranch = payload ? payload.item : null;
+            this.selectedBranch = payload && payload.item ? payload.item : null;
             this.branchFilter = id ? { id } : { id: -1 };
+            this.$nextTick(() => {
+                if (this.$refs.personViewer && typeof this.$refs.personViewer.reloadData === 'function') {
+                    this.$refs.personViewer.reloadData();
+                }
+            });
         },
 
+        onPersonSelected(payload) {
+            console.log('person selected', payload);
+        },
+
+        // pointer drag
+        startDrag(pair, evt) {
+            try {
+                if (evt && evt.currentTarget && 
+                    typeof evt.currentTarget.setPointerCapture === 'function') {
+                    evt.currentTarget.setPointerCapture(evt.pointerId);
+                }
+            } catch (e) { /* ignore */ }
+
+            this._pointerId = evt && evt.pointerId ? evt.pointerId : null;
+            this._dragging = pair;
+            this._lastY = Number(evt && evt.clientY) || 0;
+
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'row-resize';
+            this._addPointerListeners();
+
+            console.debug('startDrag', 
+                            { dragging: this._dragging, 
+                              lastY: this._lastY, 
+                              companiesHeight: this.companiesHeight, 
+                              branchesHeight: this.branchesHeight, 
+                              personsHeight: this.personsHeight });
+        },
+
+_addPointerListeners() {
+    // always re-bind to ensure `this` is the component instance
+    this._boundPointerMove = this._onPointerMove.bind(this);
+    this._boundPointerUp = this._onPointerUp.bind(this);
+
+    window.addEventListener('pointermove', this._boundPointerMove, { passive: false, capture: true });
+    window.addEventListener('pointerup', this._boundPointerUp, { capture: true });
+    window.addEventListener('pointercancel', this._boundPointerUp, { capture: true });
+},
+
+_removePointerListeners() {
+    if (this._boundPointerMove) {
+        try { window.removeEventListener('pointermove', this._boundPointerMove, { capture: true }); } catch (e) {}
+        this._boundPointerMove = null;
+    }
+    if (this._boundPointerUp) {
+        try {
+            window.removeEventListener('pointerup', this._boundPointerUp, { capture: true });
+            window.removeEventListener('pointercancel', this._boundPointerUp, { capture: true });
+        } catch (e) {}
+        this._boundPointerUp = null;
+    }
+},
+
+_onPointerMove(evt) {
+  console.debug('_onPointerMove fired', { pointerId: evt && evt.pointerId, clientY: evt && evt.clientY, dragging: this._dragging });
+  if (!this._dragging) return;
+  if (this._pointerId !== null && evt && evt.pointerId !== this._pointerId) return;
+  if (evt) evt.preventDefault();
+
+  const clientY = (evt && evt.clientY) ? Number(evt.clientY) : NaN;
+  if (!isFinite(clientY)) return;
+  let dy = clientY - Number(this._lastY || 0);
+  this._lastY = clientY;
+  if (!isFinite(dy) || dy === 0) return;
+
+  const compRef = this.$refs.companiesSection;
+  const branRef = this.$refs.branchesSection;
+  const persRef = this.$refs.personsSection;
+  const parentRect = this.$el ? this.$el.getBoundingClientRect() : null;
+
+  const currCompanies = compRef ? compRef.getBoundingClientRect().height : Number(this.companiesHeight) || 0;
+  const currBranches  = branRef ? branRef.getBoundingClientRect().height : Number(this.branchesHeight) || 0;
+  const currPersons   = persRef ? persRef.getBoundingClientRect().height : Number(this.personsHeight) || 0;
+
+  // debug: parent height and sums
+  const parentHeight = parentRect ? parentRect.height : NaN;
+  const sum = (currCompanies + currBranches + currPersons);
+  console.debug('sizes', { parentHeight, currCompanies, currBranches, currPersons, sum, dy });
+
+  // try with zero min to confirm
+  const minH = this.minSectionHeight;
+  if (this._dragging === 'companies-branches') {
+    const a = Math.max(minH, Math.round(currCompanies + dy));
+    const b = Math.max(minH, Math.round(currBranches - dy));
+    // console.debug('attempt', { a, b });
+    if (compRef) compRef.style.height = a + 'px';
+    if (branRef) branRef.style.height = b + 'px';
+    this.companiesHeight = a;
+    this.branchesHeight = b;
+  } else if (this._dragging === 'branches-persons') {
+    const b = Math.max(minH, Math.round(currBranches + dy));
+    const p = Math.max(minH, Math.round(currPersons - dy));
+    // console.debug('attempt', { b, p });
+    if (branRef) branRef.style.height = b + 'px';
+    if (persRef) persRef.style.height = p + 'px';
+    this.branchesHeight = b;
+    this.personsHeight = p;
+  }
+
+  this._callChildrenCalc();
+},
+
+        _onPointerUp(evt) {
+            if (this._pointerId !== null && evt && evt.pointerId !== undefined && evt.pointerId !== this._pointerId) return;
+            this._dragging = null;
+            this._pointerId = null;
+            this._lastY = null;
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            this._removePointerListeners();
+            if (this._rafPending) { cancelAnimationFrame(this._rafPending); this._rafPending = null; }
+            this.$nextTick(() => this._callChildrenCalc());
+        },
+
+        _callChildrenCalc() {
+            try {
+                if (this.$refs.companyViewer && typeof this.$refs.companyViewer.calculateTableDimensions === 'function') {
+                    this.$refs.companyViewer.calculateTableDimensions();
+                }
+                if (this.$refs.branchViewer && typeof this.$refs.branchViewer.calculateTableDimensions === 'function') {
+                    this.$refs.branchViewer.calculateTableDimensions();
+                }
+                if (this.$refs.personViewer && typeof this.$refs.personViewer.calculateTableDimensions === 'function') {
+                    this.$refs.personViewer.calculateTableDimensions();
+                }
+                if (this.$refs.personViewer && typeof this.$refs.personViewer.reloadData === 'function') {
+                    this.$refs.personViewer.reloadData();
+                }
+            } catch (e) {
+                console.warn('child recalc failed', e);
+            }
+        },
     },
-}
+};
 </script>
 
 <style scoped>
 *,
 *::before,
-*::after {
-    box-sizing: border-box;
+*::after { box-sizing: border-box; }
+
+.dashboard-layout { 
+    display: flex; 
+    height: 100vh; 
+    width: 100vw; 
+    overflow: hidden; 
 }
 
-.dashboard-layout {
-    display: flex;
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden;
+.company-data { 
+    flex: 1; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 8px; 
+    padding: 8px; 
 }
 
-.company-data {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-/* SECTION is the hard boundary (optional but helpful) */
-.dashboard-block {
+.dashboard-block { 
   box-sizing: border-box;
-  overflow: hidden; /* prevents “bleed” outside its own max width/height */
+  /* allow inner viewer to show its own scrollbars — don't create section scrollbars */
+  overflow: visible;        /* was overflow-y: auto; overflow-x: hidden; */
+  /* keep any optional visual separation lighter or removed */
+  border-right: none;
+}
+.companies-block { 
+    min-height: 160px; 
+}
+.branches-block { 
+    min-height: 120px; 
+}
+.persons-block { 
+    min-height: 120px; 
 }
 
-/*
-.dashboard-block {
-    width: 100%;   
-    box-sizing: border-box;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    overflow: hidden;
-
-    max-height: 320px;
-    height: 320px; 
-    min-width: 320px;
-    position: relative;
-    background: #f9f9f9;
+.divider {
+  height: 8px;
+  cursor: row-resize;
+  display: block;
+  margin: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.02), rgba(255,255,255,0.02));
+  border-top: 1px solid rgba(0,0,0,0.1);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  touch-action: none;
+  z-index: 5;
 }
-*/
-
-.companies-block {
-    min-height: 160px;
-}
-
-.branches-block {
-    min-height: 120px;
-}
-
-.persons-block {
-    min-height: 120px;
-}
-
-.projects-block {
-    min-height: 120px;
-}
-
-.events-block {
-    width: 320px;
-    min-width: 220px;
-    background: #fffbe6;
-    border-left: 2px solid #eee;
-    padding: 8px;
-    overflow-y: auto;
-    height: 100vh;
-}
+.divider:hover { background: rgba(0,0,0,0.04); }
 </style>
