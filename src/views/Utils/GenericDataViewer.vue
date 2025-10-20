@@ -214,7 +214,16 @@ export default {
 
     computed: {
         rootContainerStyle() {
-            // Keep it within the computed max width; width:100% ensures it fills up to that cap
+            // If parent supplied a containerWidth explicitly, use it directly so
+            // the component spans that area exactly (ignore preserveRightSpace).
+            if (typeof this.containerWidth === 'number' && this.containerWidth > 0) {
+                return {
+                    width: this.containerWidth + 'px',
+                    maxWidth: this.containerWidth + 'px'
+                };
+            }
+
+            // Otherwise use the effectiveContainerWidth computed by layout logic
             return {
                 maxWidth: this.effectiveContainerWidth + 'px',
                 width: '100%',
@@ -421,12 +430,14 @@ export default {
 
             // Compute screen and specified widths first (declare BEFORE use)
             var screenW = window.innerWidth || document.documentElement.clientWidth || parentWidth || 0;
-            // Prefer a fixed capWidth if provided; otherwise fall back to containerWidth (which may be dynamic)
-            var specified = (typeof this.capWidth === 'number' && this.capWidth > 0)
-                ? this.capWidth
-                : ((typeof this.containerWidth === 'number' && this.containerWidth > 0)
-                    ? this.containerWidth
-                    : (parentWidth || screenW));
+            // If parent explicitly provided containerWidth, use it as the effective width
+            var specified;
+            if (typeof this.containerWidth === 'number' && this.containerWidth > 0) {
+                specified = this.containerWidth;
+            } else {
+                // Prefer a fixed capWidth if provided; otherwise fall back to parent or screen width
+                specified = (typeof this.capWidth === 'number' && this.capWidth > 0) ? this.capWidth : (parentWidth || screenW);
+            }
 
             // Header height (fallback ~28)
             var headerH = 28;
@@ -446,8 +457,11 @@ export default {
                 this.tableHeight - headerH - containerPadV - scrollbarReserve
             );
 
-            // Effective max width for the outer container: min(specified, screen) - preserveRightSpace
-            var preserve = Math.max(0, this.preserveRightSpace || 0);
+            // Effective max width for the outer container:
+            // - If containerWidth was provided we already set 'specified' to it and we should not
+            //   subtract preserveRightSpace (parent requested explicit width).
+            // - Otherwise subtract preserveRightSpace if present.
+            var preserve = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? 0 : Math.max(0, this.preserveRightSpace || 0);
             var minOfTwo = Math.min(specified, screenW);
             this.effectiveContainerWidth = Math.max(0, minOfTwo - preserve);
 
@@ -723,7 +737,6 @@ export default {
     background: #fff;
     display: flex;
     flex-direction: column;
-    border: red 2px solid;
     overflow: hidden;
 }
 
@@ -737,6 +750,7 @@ export default {
     /* critical for nested flex + scroll */
     min-width: 0;
     /* critical in flex layouts to allow overflow/scroll */
+    border: rgba(0, 0, 0, 0.1) 2px solid;
 }
 
 .masterdata-table-container {

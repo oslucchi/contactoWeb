@@ -1,22 +1,21 @@
 <!-- filepath: /share/sources/Contacto/cantactoWeb/src/views/DashboardByCompany.vue -->
 <template>
     <div class="dashboard-layout">
-        <div class="main-area" :style="{ width: mainAreaWidth + 'px' }">
+        <div class="company-data" :style="{ width: '70%', maxWidth: '1300px'}">
             <!-- Top: Companies -->
             <section class="dashboard-block companies-block"
-                     :style="{ maxHeight: '200px', height: '200px' }">
+                     :style="{ maxHeight: '400px', height: '400px' }">
                 <GenericDataViewer 
                     page="dashboard" 
                     element="Company" 
                     :user="userId"
                     :filter="{ searchFor: '' }"
                     :featuresEnabled="[false, false, false, true, true]"
-                    :tableHeight=200
-                    :containerWidth="mainAreaWidth"
-                    :preserveRightSpace="300"
+                    :tableHeight=400
                     :emitOnSelect="companySelected"
                     @rowSelected="onCompanySelected" />
             </section>
+                    <!-- :containerWidth="mainAreaWidth" -->
 
             <section class="dashboard-block branches-block"
                     :style="{ maxHeight: '120px', height: '120px' }">
@@ -27,12 +26,11 @@
                     :filter="companyFilter"
                     :featuresEnabled="[false, false, false, false, false]"
                     :tableHeight=120
-                    :containerWidth="mainAreaWidth"
                     :emitOnSelect="branchSelected"
                     @rowSelected="onBranchSelected" />
             </section>
             <section class="dashboard-block persons-block"
-                    :style="{ maxHeight: '120px', height: '120px' }">
+                    :style="{ maxHeight: '240px', height: '240px' }">
 
                 <GenericDataViewer
                     page="dashboard"
@@ -40,8 +38,7 @@
                     :user="userId"
                     :filter="companyFilter"
                     :featuresEnabled="[false, false, false, false, false]"
-                    :tableHeight=120
-                    :containerWidth="mainAreaWidth"
+                    :tableHeight=240
                     :emitOnSelect="personSelected"
                     @rowSelected="onPersonSelected" />
             </section>
@@ -136,7 +133,7 @@ export default {
     overflow: hidden;
 }
 
-.main-area {
+.company-data {
     flex: 1;
     display: flex;
     flex-direction: column;
