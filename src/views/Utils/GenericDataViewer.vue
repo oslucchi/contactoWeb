@@ -48,16 +48,27 @@
                                 :style="{ width: (col.width || 120) + 'px' }" />
                         </colgroup>
                         <tbody>
-                            <tr v-for="(item, rowIdx) in sortedItems" :key="getRowIdFromData(item, rowIdx)"
+                            <tr 
+                                v-for="(item, rowIdx) in sortedItems" 
+                                :key="getRowIdFromData(item, rowIdx)"
                                 :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }">
-                                <td v-for="col in visibleColumns" :key="col.idColConfigDetail"
-                                    :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
-                                    @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)">
-                                    <div v-if="item[col.colName] !== undefined"
+                                <td 
+                                    v-for="col in visibleColumns" :key="col.idColConfigDetail"
+                                    :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && 
+                                                             selectedCell === col.colName && 
+                                                             featuresEnabled[4] }"
+                                    @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? 
+                                                                        selectCell(item, rowIdx, col.colName) : 
+                                                                        selectRow(item, rowIdx)">
+                                    <div 
+                                        v-if="item[col.colName] !== undefined"
                                         style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;">
-                                        <div v-if="selectedCell === col.colName && featuresEnabled[4]">
-                                            <input class="table-input" v-model="item[col.colName]"
-                                                style="width: 100%;" />
+                                        <div 
+                                            v-if="selectedCell === col.colName && featuresEnabled[4]">
+                                            <input 
+                                                class="table-input" v-model="item[col.colName]"
+                                                style="width: 100%;"    
+                                            />
                                         </div>
                                         <div v-else class="cell-content" v-ellipsis>
                                             {{ item[col.colName] !== undefined ? item[col.colName] :
@@ -96,7 +107,7 @@ function getClassByName(name) {
 }
 
 function applyEllipsis(el) {
-    console.log('applyEllipsis called on:', el);
+    // console.log('applyEllipsis called on:', el);
     // Enforce truncation styles (without relying on inline template styles)
     el.style.overflow = 'hidden';
     el.style.textOverflow = 'ellipsis';
@@ -128,6 +139,14 @@ export default {
         containerWidth: { type: Number, required: true },
         preserveRightSpace: { type: Number, default: 0 },
         capWidth: { type: Number, default: 0 }, // 0 = ignore; >0 = hard cap in px
+
+        // NEW: list of event names (strings) to listen on the root event bus.
+        // When any of these events fires, the component will call reloadData().
+        listenEvents: { type: Array, default: () => [] },
+
+        // NEW: event name or array of names to emit on selection (in addition to the existing 'rowSelected' emit)
+        // Parent/sibling components can listen on the root event bus ($root) for these events.
+        emitOnSelect: { type: [String, Array], default: null },
     },
     emits: ['rowSelected'],
     data() {
@@ -145,6 +164,9 @@ export default {
             localBodyHeight: 0,
             localTableWidth: 0,
             effectiveContainerWidth: 0,
+
+            // internal registry of external listeners so we can remove them on destroy
+            _externalListeners: [],
         };
     },
 
@@ -152,7 +174,42 @@ export default {
         // Optionally, add resize event listener to recalculate sizes
         window.addEventListener('resize', this.calculateTableDimensions);
         this.calculateTableDimensions();
-        console.log('Mounted with containerWidth:', this.containerWidth);
+        // console.log('Mounted with containerWidth:', this.containerWidth);
+
+        // Register root event listeners (if any) to trigger reloadData
+        if (Array.isArray(this.listenEvents) && this.listenEvents.length) {
+            this.listenEvents.forEach(evtName => {
+                const handler = (...args) => {
+                    // allow optional payload handling in future; for now just reload
+                    this.reloadData();
+                };
+                this._externalListeners.push({ evtName, handler });
+                if (this.$root && this.$root.$on) {
+                    this.$root.$on(evtName, handler);
+                }
+            });
+        }
+    },
+
+    watch: {
+        // when filter prop changes, reload data automatically
+        filter: {
+            handler() {
+                this.reloadData();
+        },
+        deep: true,
+        },
+    },
+    
+    // ensure we unregister listeners and cleanup
+    beforeDestroy() {
+        window.removeEventListener('resize', this.calculateTableDimensions);
+        if (this._externalListeners && this._externalListeners.length && this.$root && this.$root.$off) {
+            this._externalListeners.forEach(({ evtName, handler }) => {
+                this.$root.$off(evtName, handler);
+            });
+            this._externalListeners = [];
+        }
     },
 
     computed: {
@@ -163,9 +220,11 @@ export default {
                 width: '100%',
             };
         },
+
         anyActionEnabled() {
             return this.featuresEnabled.some(f => f);
         },
+
         paddedItems() {
             const rowsToShow = 10; // Or calculate based on container/table height
             const items = this.sortedItems.slice(0, rowsToShow);
@@ -174,6 +233,7 @@ export default {
             }
             return items;
         },
+
         // Total width of columns (used only for logic if needed)
         tableWidth() {
             if (this.localTableWidth) return this.localTableWidth;
@@ -181,10 +241,12 @@ export default {
             if (!this.visibleColumns.length) return 0;
             return this.visibleColumns.reduce((sum, col) => sum + (col.width || 120), 0);
         },
+
         // Body height = full tableHeight minus an estimated header block
         bodyHeight() {
             return this.localBodyHeight || (this.tableHeight - 28);
         },
+
         visibleColumns() {
             var cols = (this.tableConfig && Array.isArray(this.tableConfig.columns)) ?
                 this.tableConfig.columns
@@ -199,8 +261,12 @@ export default {
                     col.visible === 'y'))
                 .sort((a, b) => (a.position || 0) - (b.position || 0));
         },
+
         sortedItems() {
-            if (!this.sortColumn || !this.sortDirection) return this.items;
+            if (!this.sortColumn || !this.sortDirection) 
+            {
+                return this.items;
+            }
             let sorted = [...this.items];
             sorted.sort((a, b) => {
                 let valA = a[this.sortColumn] || '';
@@ -211,6 +277,7 @@ export default {
             });
             return sorted;
         },
+
         itemIdField() {
             if (!this.tableConfig || !this.tableConfig.columns) return null;
             let idCol = this.tableConfig.columns.find(col => col.colName && col.colName.toLowerCase().startsWith('id'));
@@ -220,6 +287,7 @@ export default {
             return idCol ? idCol.colName : null;
         },
     },
+
     async created() {
         try {
             const configRes = await axios.get(`${API_BASE_URL}/utility/browserData`, {
@@ -244,9 +312,13 @@ export default {
             }
 
             const ClassType = getClassByName(this.tableConfig.cliClassName);
+            const queryParms = {
+                ...(this.filter || {}),
+                rawData: true,
+            }
             const dataRes = await axios.get(
                 `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`,
-                { params: this.filter }
+                { params: queryParms }
             );
 
             this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
@@ -254,13 +326,14 @@ export default {
                 (this.tableConfig.columns || []).forEach(col => {
                     if (!(col.colName in item)) item[col.colName] = '';
                 });
-
-                this.$nextTick(() => {
-                    this.calculateTableDimensions();
-                });
-
                 return item;
             }) : [];
+
+            this.$nextTick(() => {
+                this.calculateTableDimensions();
+                if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
+            });
+
 
         } catch (err) {
             console.error('created() failed:', err);
@@ -276,10 +349,55 @@ export default {
         }
     },
     methods: {
+        // unified payload emitter (always emits 'rowSelected' to parent)
+        emitStructuredSelection(item, rowIdx) {
+            const id = this.getRowIdFromData(item, rowIdx);
+
+            // avoid optional chaining to remain toolchain-compatible
+            const elementName = this.element
+                    ? this.element
+                    : (this.tableConfig && this.tableConfig.element ? this.tableConfig.element : null);
+
+            const payload = {
+                element: elementName,
+                idField: this.itemIdField || null,
+                id,
+                item,
+            };
+
+            // 1) emit single, generic event for parent: always present
+            this.$emit('rowSelected', payload);
+    /*
+            // 2) optionally also emit named events on component (so parent could use @companySelected)
+            if (this.emitOnSelect) {
+                const evts = Array.isArray(this.emitOnSelect) ? this.emitOnSelect : [this.emitOnSelect];
+                evts.forEach((name) => {
+                if (typeof name === 'string' && name.length) {
+                    // component event
+                    this.$emit(name, payload);
+                    // broadcast to global/root for siblings if needed
+                    if (this.$root && typeof this.$root.$emit === 'function') {
+                    this.$root.$emit(name, payload);
+                    }
+                }
+                });
+            }
+    */
+        },
+
         refreshEllipsis() {
-            this.$nextTick(() => {
-                const nodes = this.$el && this.$el.querySelectorAll('.cell-content');
-                if (nodes) nodes.forEach(applyEllipsis);
+            const runner = (cb) => {
+                if (typeof window.requestIdleCallback === 'function') {
+                    window.requestIdleCallback(cb, { timeout: 200 });
+                } else {
+                    window.requestAnimationFrame(cb);
+                }
+            };
+
+            runner(() => {
+                if (!this.$el) return;
+                const nodes = this.$el.querySelectorAll('.cell-content');
+                if (nodes && nodes.length) nodes.forEach(applyEllipsis);
             });
         },
 
@@ -296,6 +414,7 @@ export default {
             const sb = e.target.offsetWidth - e.target.clientWidth; // scrollbar width
             header.style.paddingRight = sb > 0 ? sb + 'px' : '0px';
         },
+
         calculateTableDimensions() {
             // Parent width (fallback to 0)
             var parentWidth = (this.$el && this.$el.parentElement && this.$el.parentElement.offsetWidth) || 0;
@@ -354,36 +473,65 @@ export default {
         },
 
         getRowIdFromData(item, rowIdx) {
-            if (!this.tableConfig || !this.tableConfig.columns) return rowIdx;
+            if (!this.tableConfig || !this.tableConfig.columns) 
+            {
+                return rowIdx;
+            }   
             const idValue = item[this.itemIdField];
             return idValue || rowIdx;
         },
-        selectRow(item, rowIdx) {
-            console.log('selectRow called:', item.idColConfigDetail, item.colName, rowIdx);
-            this.selectedRowId = this.getRowIdFromData(item, rowIdx);
-            this.selectedCell = null;
-            this.selectedItem = item;
-            this.tableRenderKey++;
-            this.enableCellEdit = false;
-            this.$emit('rowSelected', this.selectedItem);
-        },
+
         enableCellEdit(rowIdx, colName) {
             // Only enable edit if the row is already selected
             if (this.selectedRowId === this.getRowIdFromData(this.sortedItems[rowIdx], rowIdx)) {
                 this.selectedCell = colName;
             }
         },
+
+        selectRow(item, rowIdx) {
+            console.log(`${this.element} selectRow called: ${item.idColConfigDetail}, ${item.colName}, ${rowIdx}`);
+            try {
+                this.selectedRowId = this.getRowIdFromData(item, rowIdx);
+                this.selectedItem = item;
+            } 
+            catch (error) {
+                this.selectedRowId = null
+                this.selectedItem = item || null;   
+            }
+
+            this.selectedCell = null;
+            this.tableRenderKey++;
+            this.enableCellEdit = false;
+            console.log(`this.selectedRowId: ${this.selectedRowId}, this.selectedItem: ${JSON.stringify(this.selectedItem)}`);
+
+            this.emitStructuredSelection(item, rowIdx);
+        },
+
         selectCell(item, rowIdx, colName) {
             console.log('selectCell called:',
-                this.enableCellEdit, item.colName, rowIdx, colName);
+                            this.enableCellEdit, item.colName, rowIdx, colName);
             this.selectedCell = colName;
             this.selectedItem = item;
-
-            if (this.tableConfig && this.tableConfig.element.toLowerCase() === 'company') {
+/*
+            if (this.tableConfig && this.tableConfig.element && 
+                        this.tableConfig.element.toLowerCase() === 'company') {
                 this.$emit('rowSelected', this.selectedItem);
+                // also propagate via root events if requested
+                
+                if (this.emitOnSelect) {
+                    const evts = Array.isArray(this.emitOnSelect) ? this.emitOnSelect : [this.emitOnSelect];
+                    evts.forEach(name => {
+                        if (this.$root && this.$root.$emit) {
+                            this.$root.$emit(name, this.selectedItem);
+                        }
+                    });
+                }
             }
+            this.emitSelectionEvents(item, rowIdx);
+*/
             this.tableRenderKey++;
         },
+
         getInputType(val) {
             if (typeof val === 'number') return 'number';
             if (typeof val === 'string' && val.includes('@')) return 'email';
@@ -517,18 +665,22 @@ export default {
                 `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`,
                 { params: this.filter }
             );
-            this.items = dataRes.data.map(obj => {
+            this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
                 const item = obj instanceof ClassType ? obj : new ClassType(obj);
                 this.tableConfig.columns.forEach(col => {
                     if (!(col.colName in item)) item[col.colName] = '';
                 });
                 return item;
-            });
+            }) : [];
 
             // ⬇️ Trigger layout recalculation AFTER DOM updates
             this.$nextTick(() => {
                 this.calculateTableDimensions();
+                if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
             });
+
+            this.loadData();
+
         },
     },
     watch: {

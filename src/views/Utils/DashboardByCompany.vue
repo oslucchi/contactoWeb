@@ -14,11 +14,12 @@
                     :tableHeight=200
                     :containerWidth="mainAreaWidth"
                     :preserveRightSpace="300"
+                    :emitOnSelect="companySelected"
                     @rowSelected="onCompanySelected" />
             </section>
+
             <section class="dashboard-block branches-block"
                     :style="{ maxHeight: '120px', height: '120px' }">
-
                 <GenericDataViewer
                     page="dashboard"
                     element="Branch"
@@ -27,7 +28,8 @@
                     :featuresEnabled="[false, false, false, false, false]"
                     :tableHeight=120
                     :containerWidth="mainAreaWidth"
-                />
+                    :emitOnSelect="branchSelected"
+                    @rowSelected="onBranchSelected" />
             </section>
             <section class="dashboard-block persons-block"
                     :style="{ maxHeight: '120px', height: '120px' }">
@@ -40,7 +42,8 @@
                     :featuresEnabled="[false, false, false, false, false]"
                     :tableHeight=120
                     :containerWidth="mainAreaWidth"
-                    />
+                    :emitOnSelect="personSelected"
+                    @rowSelected="onPersonSelected" />
             </section>
     <!--
       <section class="dashboard-block projects-block">
@@ -77,7 +80,8 @@ export default {
         return {
             userId: 1, // Replace with actual user logic
             selectedCompany: null,
-            companyFilter: null,
+            companyFilter: { id: -1 } ,
+            branchFilter: { id: -1 },
             sidebarWidth: 400,
             mainAreaWidth: window.innerWidth - 400 - 10
         };
@@ -93,13 +97,28 @@ export default {
         handleResize() {
             this.mainAreaWidth = window.innerWidth - this.sidebarWidth - 10;
         },
-        onCompanySelected(company) {
-            console.log('Selected company:', company.idCompany );
-            this.selectedCompany = company;
-            // You can pass any filter structure needed by your API
-            this.companyFilter = company ? { id: company.idCompany } : null;
-        }
-    }
+
+        // payload is the structured object emitted by GenericDataViewer:
+        // { element, idField, id, item }
+        onCompanySelected(payload) {
+            console.log('onCompanySelected payload:', payload);
+            const id = payload && payload.id ? payload.id : null;
+            this.selectedCompany = payload ? payload.item : null;
+            this.companyFilter = id ? { id } : { id: -1 };
+
+            // reset branch/person selection
+            this.selectedBranch = null;
+            this.branchFilter = { id: -1 };
+            console.log('called onCompanySelected:', this.selectedCompany);
+        },
+
+        onBranchSelected(payload) {
+            const id = payload && payload.id ? payload.id : null;
+            this.selectedBranch = payload ? payload.item : null;
+            this.branchFilter = id ? { id } : { id: -1 };
+        },
+
+    },
 }
 </script>
 
