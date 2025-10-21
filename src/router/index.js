@@ -20,34 +20,34 @@ import DashboardByCompany from '../views/Utils/DashboardByCompany.vue';
 Vue.use(VueRouter);
 
 const routes = [
-  { path: '/', name: 'Home', component: DashboardByCompany },
-  { path: '/persons', component: PersonsList },
-  { path: '/persons/new', component: PersonsForm },
-  { path: '/persons/:id', component: PersonsForm, props: true },
+  { path: '/', name: 'Home', component: DashboardByCompany, meta: { title: 'Vista per azienda' } },
+  { path: '/persons', component: PersonsList, meta: { title: 'Anagrafica contatti' } },
+  { path: '/persons/new', component: PersonsForm, meta: { title: 'Nuovo contatto' } },
+  { path: '/persons/:id', component: PersonsForm, props: true, meta: { title: 'Modifica contatto' } },
 
-  { path: '/companies', component: CompaniesList },
-  { path: '/companies/new', component: CompaniesForm },
-  { path: '/companies/:id', component: CompaniesForm, props: true },
+  { path: '/companies', component: CompaniesList, meta: { title: 'Anagrafica aziende' } },
+  { path: '/companies/new', component: CompaniesForm, meta: { title: 'Nuova azienda' } },
+  { path: '/companies/:id', component: CompaniesForm, props: true, meta: { title: 'Modifica azienda' } },
 
-  { path: '/branches', component: BranchesList },
-  { path: '/branches/new', component: BranchesForm },
-  { path: '/branches/:id', component: BranchesForm, props: true },
+  { path: '/branches', component: BranchesList, meta: { title: 'Anagrafica filiali' } },
+  { path: '/branches/new', component: BranchesForm, meta: { title: 'Nuova filiale' } },
+  { path: '/branches/:id', component: BranchesForm, props: true, meta: { title: 'Modifica filiale' } },
 
-  { path: '/organization', component: OrganizationList },
-  { path: '/organization/new', component: OrganizationForm },
-  { path: '/organization/:id', component: OrganizationForm, props: true },
+  { path: '/organization', component: OrganizationList, meta: { title: 'Anagrafica organizzazione' } },
+  { path: '/organization/new', component: OrganizationForm, meta: { title: 'Nuova organizzazione' } },
+  { path: '/organization/:id', component: OrganizationForm, props: true, meta: { title: 'Modifica organizzazione' } },
 
-  { path: '/employees', component: EmployeesList },
-  { path: '/employees/new', component: EmployeesForm },
-  { path: '/employees/:id', component: EmployeesForm, props: true },
+  { path: '/employees', component: EmployeesList, meta: { title: 'Anagrafica impiegati' } },
+  { path: '/employees/new', component: EmployeesForm, meta: { title: 'Nuovo impiegato' } },
+  { path: '/employees/:id', component: EmployeesForm, props: true, meta: { title: 'Modifica impiegato' } },
 
-  { path: '/projects', component: ProjectsList },
-  { path: '/projects/new', component: ProjectsForm },
-  { path: '/projects/:id', component: ProjectsForm, props: true },
+  { path: '/projects', component: ProjectsList, meta: { title: 'Anagrafica progetti' } },
+  { path: '/projects/new', component: ProjectsForm, meta: { title: 'Nuovo progetto' } },
+  { path: '/projects/:id', component: ProjectsForm, props: true, meta: { title: 'Modifica progetto' } },
 
-  { path: '/dashboardByCompany', component: DashboardByCompany },
+  { path: '/dashboardByCompany', component: DashboardByCompany, meta: { title: 'Vista per azienda' } },
 
-  { path: '/agenda/schedule', component: AgendaCalendar, props: true },
+  { path: '/agenda/schedule', component: AgendaCalendar, props: true, meta: { title: 'Agenda' } },
 ];
 
 const router = new VueRouter({

@@ -6,6 +6,7 @@ export default class ColConfigDetails {
     showName = '',
     position = 0,
     width = 120,
+    renderLayout = '',
     visible = true,
     useForSort = false
   } = {}) {
@@ -15,6 +16,7 @@ export default class ColConfigDetails {
     this.showName = showName;
     this.position = position;
     this.width = width;
+    this.renderLayout = renderLayout;
     this.visible = visible;
     this.useForSort = useForSort;
   }

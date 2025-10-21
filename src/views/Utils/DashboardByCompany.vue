@@ -1,12 +1,19 @@
 <template>
     <div class="dashboard-layout">
-        <div class="company-data" :style="{ width: '70%', maxWidth: '1300px' }">
+        <div class="company-data">
             <!-- Companies -->
             <section ref="companiesSection" class="dashboard-block companies-block"
                 :style="{ height: companiesHeight + 'px' }">
-                <GenericDataViewer ref="companyViewer" page="dashboard" element="Company" :user="userId"
-                    :filter="{ searchFor: '' }" :featuresEnabled="[false, false, false, true, true]"
-                    :tableHeight="companiesHeight" :containerWidth="mainAreaWidth" @rowSelected="onCompanySelected" />
+                <GenericDataViewer 
+                    ref="companyViewer" 
+                    page="dashboard" 
+                    element="Company" 
+                    :user="userId"
+                    :filter="{ searchFor: '' }" 
+                    :featuresEnabled="[false, false, false, true, true]"
+                    :tableHeight="companiesHeight" 
+                    :containerWidth="mainAreaWidth" 
+                    @rowSelected="onCompanySelected" />
             </section>
 
             <!-- Divider -->
@@ -15,9 +22,16 @@
             <!-- Branches -->
             <section ref="branchesSection" class="dashboard-block branches-block"
                 :style="{ height: branchesHeight + 'px' }">
-                <GenericDataViewer ref="branchViewer" page="dashboard" element="Branch" :user="userId"
-                    :filter="companyFilter" :featuresEnabled="[false, false, false, false, false]"
-                    :tableHeight="branchesHeight" :containerWidth="mainAreaWidth" @rowSelected="onBranchSelected" />
+                <GenericDataViewer 
+                    ref="branchViewer" 
+                    page="dashboard" 
+                    element="Branch" 
+                    :user="userId"
+                    :filter="companyFilter" 
+                    :featuresEnabled="[false, false, false, false, false]"
+                    :tableHeight="branchesHeight" 
+                    :containerWidth="mainAreaWidth" 
+                    @rowSelected="onBranchSelected" />
             </section>
 
             <!-- Divider -->
@@ -26,9 +40,39 @@
             <!-- Persons -->
             <section ref="personsSection" class="dashboard-block persons-block"
                 :style="{ height: personsHeight + 'px' }">
-                <GenericDataViewer ref="personViewer" page="dashboard" element="Person" :user="userId"
-                    :filter="companyFilter" :featuresEnabled="[false, false, false, false, false]"
-                    :tableHeight="personsHeight" :containerWidth="mainAreaWidth" @rowSelected="onPersonSelected" />
+                <GenericDataViewer 
+                    ref="personViewer" 
+                    page="dashboard" 
+                    element="Person" 
+                    :user="userId"
+                    :filter="companyFilter" 
+                    :featuresEnabled="[false, false, false, false, false]"
+                    :tableHeight="personsHeight" 
+                    :containerWidth="mainAreaWidth" 
+                    @rowSelected="onPersonSelected" />
+            </section>
+        </div>
+        <div ref="sidebar" class="sidebar" :style="sidebarWidth !== null ? { width: sidebarWidth + 'px' } : {}">
+            <section ref="eventsSection" 
+                     class="dashboard-block events-block"
+                     :style="{ minHeight: '50%', maxHeight: '50%', width: sidebarWidth + 'px', padding: '8px' }">
+                <GenericDataViewer 
+                    ref="eventsViewer" 
+                    page="dashboard" 
+                    element="Event" 
+                    :user="userId"
+                    :filter="companyFilter"
+                    :featuresEnabled="[false, false, false, true, true]"
+                    :tableHeight="eventsHeight" 
+                    :containerWidth="eventAreaWidth" 
+                    @rowSelected="onEventSelected" />
+            </section>
+            <section ref="eventsSection" 
+                     class="dashboard-block events-block"
+                     :style="{ minHeight: '50%', maxHeight: '50%', width: sidebarWidth + 'px', padding: '8px' }">
+            <span style="height: 50%; min-height: 50%; display: block; border: 1px solid rgba(0,0,0,1); box-sizing: border-box; padding: 8px; overflow: auto;">
+                (Additional sidebar content can go here)
+            </span>
             </section>
         </div>
     </div>
@@ -48,8 +92,8 @@ export default {
             branchFilter: { id: -1 },
 
             companiesHeight: 400,
-            branchesHeight: 120,
-            personsHeight: 240,
+            branchesHeight: 100,
+            personsHeight: 220,
 
             // drag state
             _dragging: null,
@@ -57,24 +101,57 @@ export default {
             _lastY: null,            // <-- incremental approach
             minSectionHeight: 80,
 
-            sidebarWidth: 400,
-            mainAreaWidth: window.innerWidth - 400 - 10,
+            sidebarWidth: null,
+            mainAreaWidth: 0,
         };
     },
     mounted() {
         this._boundHandleResize = this.handleResize.bind(this);
         window.addEventListener('resize', this._boundHandleResize);
+
+        // measure initial sizes and observe sidebar for changes
+        this.$nextTick(() => {
+        this._measureSidebar();
+        // observe sidebar resizing (e.g. CSS changes, responsive)
+        if (window.ResizeObserver && this.$refs && this.$refs.sidebar) {
+            this._sidebarResizeObserver = new ResizeObserver(() => this._measureSidebar());
+            this._sidebarResizeObserver.observe(this.$refs.sidebar);
+        }
         this.handleResize();
+        });
     },
     beforeDestroy() {
         if (this._boundHandleResize) window.removeEventListener('resize', this._boundHandleResize);
         this._removePointerListeners();
         if (this._rafPending) cancelAnimationFrame(this._rafPending);
+        if (this._sidebarResizeObserver) {
+            try { this._sidebarResizeObserver.disconnect(); } catch (e) {}
+            this._sidebarResizeObserver = null;
+        }
     },
     methods: {
         handleResize() {
-            this.mainAreaWidth = window.innerWidth - this.sidebarWidth - 10;
+            // compute mainAreaWidth from the dashboard container width minus sidebar
+            const containerWidth = (this.$el && this.$el.getBoundingClientRect) ? this.$el.getBoundingClientRect().width : window.innerWidth;
+            const sWidth = Number.isFinite(this.sidebarWidth) ? this.sidebarWidth : 0;
+            // small gutter of 10px preserved as before
+            this.mainAreaWidth = Math.max(0, Math.round(containerWidth - sWidth - 10));
             this.$nextTick(() => this._callChildrenCalc());
+        },
+
+        // measure actual sidebar width and also compute eventAreaWidth if needed
+        _measureSidebar() {
+            if (!this.$refs || !this.$refs.sidebar) return;
+            const rect = this.$refs.sidebar.getBoundingClientRect();
+            const w = Math.round(rect.width || 0);
+            // update only if changed to avoid excessive reflows
+            if (this.sidebarWidth !== w) {
+            this.sidebarWidth = w;
+            // eventAreaWidth used by inner GenericDataViewer (if you expose it)
+            this.eventAreaWidth = Math.max(0, w - 16); // keep small padding allowance
+            // trigger a recompute of main area width
+            this.handleResize();
+            }
         },
 
         onCompanySelected(payload) {
@@ -110,6 +187,17 @@ export default {
             this.$nextTick(() => {
                 if (this.$refs.personViewer && typeof this.$refs.personViewer.reloadData === 'function') {
                     this.$refs.personViewer.reloadData();
+                }
+            });
+        },
+
+        onEventSelected(payload) {
+            const id = payload && payload.id ? payload.id : null;
+            this.selectedEvent = payload && payload.item ? payload.item : null;
+            this.eventFilter = id ? { id } : { id: -1 };
+            this.$nextTick(() => {
+                if (this.$refs.eventViewer && typeof this.$refs.eventViewer.reloadData === 'function') {
+                    this.$refs.eventViewer.reloadData();
                 }
             });
         },
@@ -245,26 +333,43 @@ export default {
 
 .dashboard-layout {
     display: flex;
-    height: 100vh;
-    width: 100vw;
+    height: calc(100vh - var(--page-header-height, 100px));
+    width: 100%;
     overflow: hidden;
+    align-items: stretch;
 }
 
 .company-data {
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     gap: 8px;
     padding: 8px;
+    min-height: 0; /* critical for inner scrolling */
+    min-width: 65%;  /* allow this flex child to shrink and prevent overflow */
+    width: 65%;
+    /* max-width: 1300px; keep previous cap */
+}
+
+/* right sidebar fixed width */
+.sidebar {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 35%;  /* allow this flex child to shrink and prevent overflow */
+    width: 35%;
+    box-sizing: border-box;
+    border-left: 1px solid rgba(0,0,0,0.04); /* subtle separator if desired */
+    background: transparent;
 }
 
 .dashboard-block {
+    min-height: 0;
     box-sizing: border-box;
     /* allow inner viewer to show its own scrollbars — don't create section scrollbars */
     overflow: visible;
-    /* was overflow-y: auto; overflow-x: hidden; */
-    /* keep any optional visual separation lighter or removed */
-    border-right: none;
+
 }
 
 .companies-block {
@@ -277,6 +382,16 @@ export default {
 
 .persons-block {
     min-height: 120px;
+}
+
+/* make events section stretch to fill sidebar vertically */
+.events-block {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    min-height: 0;
+    overflow: visible;
+    padding: 8px;
 }
 
 .divider {

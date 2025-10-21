@@ -1,6 +1,6 @@
 <template>
   <div class="generic-data-viewer-root" :style="rootContainerStyle" @click="deselectRow">
-    <div class="masterdata-content">
+    <div class="masterdata-content" ref="masterdataContent">
       <!-- Action bar -->
       <div v-if="anyActionEnabled" class="action-icons">
         <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
@@ -22,38 +22,47 @@
         <div class="masterdata-table-header" ref="headerRef">
           <table class="masterdata-table" :style="{ minWidth: localTableWidth + 'px' }">
             <colgroup>
-              <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
+              <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
+                :style="{ width: (col.width || 120) + 'px' }" />
             </colgroup>
             <thead>
               <tr>
-                <th v-for="(col, i) in visibleColumns" :key="col.idColConfigDetail" @click="col.useForSort && handleSort(col.colName)">
+                <th v-for="(col, i) in visibleColumns" :key="col.idColConfigDetail"
+                  @click="col.useForSort && handleSort(col.colName)">
                   {{ col.showName }}
-                  <span v-if="sortColumn === col.colName" class="sort-arrow">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span>
-                  <span class="col-resizer" @mousedown.stop.prevent="startResize($event, col, i)" title="Resize column"></span>
+                  <span v-if="sortColumn === col.colName" class="sort-arrow">{{ sortDirection === 'asc' ? '▲' :
+                    '▼'}}</span>
+                  <span class="col-resizer" @mousedown.stop.prevent="startResize($event, col, i)"
+                    title="Resize column"></span>
                 </th>
               </tr>
             </thead>
           </table>
         </div>
 
-        <div class="masterdata-tbody-scroll" ref="tbodyScroll" @scroll="syncHeaderScroll" :style="{ height: bodyHeight + 'px' }">
+        <div class="masterdata-tbody-scroll" ref="tbodyScroll" @scroll="syncHeaderScroll"
+          :style="{ height: bodyHeight + 'px' }">
           <table class="masterdata-table" :style="{ minWidth: localTableWidth + 'px' }">
             <colgroup>
-              <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
+              <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
+                :style="{ width: (col.width || 120) + 'px' }" />
             </colgroup>
             <tbody>
-              <tr v-for="(item, rowIdx) in sortedItems" :key="getRowIdFromData(item, rowIdx)" :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }">
-                <td v-for="col in visibleColumns" :key="col.idColConfigDetail" :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
-                    @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)">
-                  <div v-if="item[col.colName] !== undefined" style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;">
+              <tr v-for="(item, rowIdx) in sortedItems" :key="getRowIdFromData(item, rowIdx)"
+                :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }">
+                <td v-for="col in visibleColumns" :key="col.idColConfigDetail"
+                  :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
+                  @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)">
+                  <div v-if="item[col.colName] !== undefined"
+                    style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;">
                     <div v-if="selectedCell === col.colName && featuresEnabled[4]">
                       <input class="table-input" v-model="item[col.colName]" style="width: 100%;" />
                     </div>
-                    <div v-else class="cell-content" v-ellipsis>
-                      {{ item[col.colName] !== undefined ? item[col.colName] : JSON.stringify(item) }}
-                    </div>
+                    <div v-else class="cell-content" v-ellipsis v-html="renderCellHtml(item, col)"></div>
                   </div>
-                  <div v-else>&nbsp;</div>
+                  <div v-else>
+                    {{ item[col.colName] }}
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -66,7 +75,9 @@
         <div class="modal-content">
           <button class="modal-close" @click="showEditModal = false">X</button>
           <h3>Edit {{ tableConfig.table }}</h3>
-          <div><pre>{{ selectedItem }}</pre></div>
+          <div>
+            <pre>{{ selectedItem }}</pre>
+          </div>
         </div>
       </div>
     </div>
@@ -77,6 +88,7 @@
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import ColConfigHeader from '@/types/ColConfigHeader';
+import DOMPurify from 'dompurify';
 
 function getClassByName(name) {
   return require(`@/types/${name}`).default;
@@ -158,22 +170,23 @@ export default {
 
   computed: {
     rootContainerStyle() {
-      if (typeof this.containerWidth === 'number' && this.containerWidth > 0) {
-        return { width: this.containerWidth + 'px', maxWidth: this.containerWidth + 'px' };
-      }
-      return { maxWidth: this.effectiveContainerWidth + 'px', width: '100%' };
+      // Use fluid width but cap it so the viewer never exceeds its parent/cap.
+      const provided = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? this.containerWidth : Infinity;
+      const effective = (typeof this.effectiveContainerWidth === 'number' && this.effectiveContainerWidth > 0) ? this.effectiveContainerWidth : Infinity;
+      const cap = Math.min(provided, effective);
+      return { width: '100%', maxWidth: (isFinite(cap) ? cap + 'px' : 'none') };
     },
     anyActionEnabled() { return this.featuresEnabled.some(f => f); },
     bodyHeight() { return this.localBodyHeight || (this.tableHeight - 28); },
     visibleColumns() {
       var cols = (this.tableConfig && Array.isArray(this.tableConfig.columns)) ? this.tableConfig.columns : [];
       return cols.filter(col => (col.visible === 1 || col.visible === '1' || col.visible === true || col.visible === 'Y' || col.visible === 'y'))
-                 .sort((a,b)=> (a.position||0)-(b.position||0));
+        .sort((a, b) => (a.position || 0) - (b.position || 0));
     },
     sortedItems() {
       if (!this.sortColumn || !this.sortDirection) return this.items;
       let sorted = [...this.items];
-      sorted.sort((a,b)=>{
+      sorted.sort((a, b) => {
         let valA = a[this.sortColumn] || '';
         let valB = b[this.sortColumn] || '';
         if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
@@ -236,6 +249,144 @@ export default {
   },
 
   methods: {
+    // normalize input to Date (accept Date object, ISO string, seconds or ms number)
+    _toDate(value) {
+      if (value == null || value === '') return null;
+      if (value instanceof Date) return value;
+      if (typeof value === 'number') {
+        // if looks like seconds (10 digits) convert to ms
+        return new Date(value < 1e12 ? value * 1000 : value);
+      }
+      const d = new Date(value);
+      return isFinite(d) ? d : null;
+    },
+
+    // simple formatter supporting token "YY","YYYY","MM","DD","HH","mm","ss"
+    formatDate(value, layout = 'YY-MM-DD HH:mm') {
+      const d = this._toDate(value);
+      if (!d) return '';
+      const pad = n => String(n).padStart(2, '0');
+      const tokens = {
+        'YYYY': String(d.getFullYear()),
+        'YY': String(d.getFullYear()).slice(-2),
+        'MM': pad(d.getMonth() + 1),
+        'DD': pad(d.getDate()),
+        'HH': pad(d.getHours()),
+        'mm': pad(d.getMinutes()),
+        'ss': pad(d.getSeconds())
+      };
+      // replace tokens (longer tokens first)
+      return layout.replace(/YYYY|YY|MM|DD|HH|mm|ss/g, t => tokens[t] || t);
+    },
+
+    // basic number formatter: interpret format like "0.00#" -> min decimals = count of '0' after '.', use fixed decimals = count zeros
+    formatNumber(value, layout = '0.00') {
+      if (value == null || value === '') return '';
+      const n = Number(value);
+      if (!isFinite(n)) return String(value);
+      const dotIdx = String(layout).indexOf('.');
+      let minDecimals = 0;
+      if (dotIdx >= 0) {
+        const frac = layout.slice(dotIdx + 1);
+        // count '0' as mandatory decimals
+        minDecimals = (frac.match(/0/g) || []).length;
+      }
+      return n.toLocaleString(undefined, { minimumFractionDigits: minDecimals, maximumFractionDigits: Math.max(minDecimals, 6) });
+    },
+
+    // simple escapers
+    escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    },
+    escapeAttr(s) {
+      return this.escapeHtml(s).replace(/"/g, '&quot;');
+    },
+
+    // resolve an icon name to a usable src URL.
+    // tries webpack `require` for common extensions so icons are bundled; falls back to public /assets path.
+    iconSrcFor(name) {
+      if (name == null) return '';
+      const base = String(name).trim();
+      if (!base) return '';
+      const candidates = [base, `${base}.png`, `${base}.svg`, `${base}.jpg`, `${base}.jpeg`, `${base}.gif`];
+      for (let i = 0; i < candidates.length; i++) {
+        try {
+          // eslint-disable-next-line global-require, import/no-dynamic-require
+          const r = require(`@/assets/icons/${candidates[i]}`);
+          if (r) return (typeof r === 'string') ? r : (r.default || r);
+        } catch (e) {
+          // try next
+        }
+      }
+      // fallback to public-served path (assumes /assets/icons/* is served)
+      return `/assets/icons/${encodeURIComponent(base)}.png`;
+    },
+
+    // return safe HTML string for a cell (ICON/DATETIME/NUMBER/STRING)
+    renderCellHtml(item, col) {
+      const raw = item && col && (col.colName in item) ? item[col.colName] : '';
+      if (!col || !col.renderLayout) return DOMPurify.sanitize(this.escapeHtml(raw == null ? '' : String(raw)));
+
+      const layoutStr = String(col.renderLayout || '').trim();
+      if (!layoutStr) return DOMPurify.sanitize(this.escapeHtml(raw == null ? '' : String(raw)));
+
+      const firstSpace = layoutStr.indexOf(' ');
+      const type = (firstSpace > 0 ? layoutStr.slice(0, firstSpace) : layoutStr).toUpperCase();
+      const fmt = (firstSpace > 0 ? layoutStr.slice(firstSpace + 1).trim() : '');
+
+      console.debug('renderCellHtml:', { raw, type, fmt });
+      let html = '';
+      switch (type) {
+        case 'ICON': {
+          // use the icon name/value from the item and resolve to a real URL
+          const iconName = item && col && (col.colName in item) ? String(item[col.colName] || '').trim() : '';
+          if (iconName) {
+            const resolved = this.iconSrcFor(iconName);
+            const s = this.escapeAttr(resolved);
+            const alt = this.escapeAttr(iconName);
+
+            // parse optional size from format token, e.g. "ICON 24" or "ICON 24x24"
+            let w = 32, h = 32;
+            if (fmt) {
+              const m = fmt.match(/^(\d+)(?:x(\d+))?/);
+              if (m) { w = parseInt(m[1], 10) || w; h = parseInt(m[2], 10) || w; }
+            }
+
+            html = `<img src="${s}" alt="${alt}" class="cell-icon" style="width:${w}px;height:${h}px;max-width:${w}px;max-height:${h}px;object-fit:contain;"/>`;
+          } else {
+            html = this.escapeHtml(raw == null ? '' : String(raw));
+          }
+          break;
+        }
+        case 'DATETIME':
+        case 'DATE': {
+          const formatted = this.formatDate(raw, fmt || 'YY-MM-DD HH:mm');
+          html = `<span>${this.escapeHtml(formatted)}</span>`;
+          break;
+        }
+        case 'NUMBER':
+        case 'NUM': {
+          const formatted = this.formatNumber(raw, fmt || '0.00');
+          html = `<span style="white-space:nowrap">${this.escapeHtml(formatted)}</span>`;
+          break;
+        }
+        case 'HTML': {
+          // explicit "HTML" type: allow limited HTML but sanitize it
+          html = String(raw || '');
+          break;
+        }
+        default:
+          html = this.escapeHtml(raw == null ? '' : String(raw));
+      }
+
+      // sanitize and return (allow only img and span with src/alt/class on img)
+      return DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['img', 'span'],
+        ALLOWED_ATTR: ['src', 'alt', 'class', 'style']
+      });
+    },
+
     calculateTableDimensions() {
       var parentWidth = (this.$el && this.$el.parentElement && this.$el.parentElement.offsetWidth) || 0;
       var screenW = window.innerWidth || document.documentElement.clientWidth || parentWidth || 0;
@@ -258,10 +409,10 @@ export default {
       this.effectiveContainerWidth = Math.max(0, minOfTwo - preserve);
 
       // total width defined by DB column widths (do NOT force expand to parent)
-      var totalColWidth = this.visibleColumns.reduce(function(sum, col) { return sum + (Number(col.width) || 120); }, 0);
+      var totalColWidth = this.visibleColumns.reduce(function (sum, col) { return sum + (Number(col.width) || 120); }, 0);
 
       // ensure a sane minimum but prefer totalColWidth so columns keep DB sizes
-      this.localTableWidth = Math.max( (totalColWidth || 0), 50 );
+      this.localTableWidth = Math.max((totalColWidth || 0), 50);
 
       this.refreshEllipsis();
 
@@ -271,6 +422,10 @@ export default {
         if (body && header) {
           const sb = body.offsetWidth - body.clientWidth;
           header.style.paddingRight = sb > 0 ? sb + 'px' : '0px';
+          // ensure the viewer reserves the same gutter so its right border sits outside the scrollbar
+          if (this.$refs.masterdataContent && typeof this.$refs.masterdataContent.style.setProperty === 'function') {
+            this.$refs.masterdataContent.style.setProperty('padding-right', sb > 0 ? sb + 'px' : '0px');
+          }
         }
       });
     },
@@ -369,13 +524,13 @@ export default {
       document.addEventListener('mouseup', onUp);
     },
 
-        // persist column config: try server, fallback to localStorage and emit event
+    // persist column config: try server, fallback to localStorage and emit event
     async saveColConfig(col) {
       try {
         // best-effort PUT to generic utility endpoint; adjust to your real API if available
         const body = JSON.parse(JSON.stringify(col));
-        await axios.put(`${API_BASE_URL}/utility/colConfigDetail/${col.idColConfigDetail || 0}`, 
-                        body);
+        await axios.put(`${API_BASE_URL}/utility/colConfigDetail/${col.idColConfigDetail || 0}`,
+          body);
         this.$emit('colConfigSaved', { column: col });
         return;
       } catch (err) {
@@ -469,16 +624,16 @@ export default {
 
 <style scoped>
 .action-icons {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
 }
 
 .icon {
-    width: 24px;
-    height: 24px;
-    vertical-align: middle;
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
 }
 
 .generic-data-viewer-root,
@@ -486,233 +641,268 @@ export default {
 .masterdata-table-container,
 .masterdata-table-header,
 .masterdata-tbody-scroll {
-    box-sizing: border-box;
-}
-
-/* Outer layout */
-.generic-data-viewer-root {
-  height: 100%;            /* inherit the section's px height */
-  display: flex;
-  flex-direction: column;
-  min-height: 0;           /* allow children to shrink inside flex */
   box-sizing: border-box;
 }
 
+/* Outer layout */
+.generic-data-viewer-root,
 .masterdata-content {
-    width: 100%;
-    box-sizing: border-box;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  /* allow flex parent to constrain width */
+  ;
+}
 
-    display: flex;
-    flex-direction: column;
+.generic-data-viewer-root {
+  height: 100%;
+  /* inherit the section's px height */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* allow children to shrink inside flex */
+}
 
-    min-height: 0;
-
-    position: relative;             /* ensure z-index and shadow render correctly */
-    z-index: 2;
-
-    border: 1px solid rgba(0, 0, 0, 0.6);
-    background-clip: padding-box;   /* avoid border being overlapped by children */
+.masterdata-content {
+  position: relative;
+  /* ensure z-index and shadow render correctly */
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  background-clip: padding-box;
+  /* avoid border being overlapped by children */
 }
 
 /* ensure the scrolling element inside the viewer shows a native scrollbar */
 .masterdata-scroll,
 .masterdata-table-container,
 .masterdata-inner {
-  min-height: 0;      /* avoid flex overflow issues */
-  overflow-y: auto;   /* show vertical scrollbar when needed */
+  min-height: 0;
+  /* avoid flex overflow issues */
+  overflow-y: auto;
+  /* show vertical scrollbar when needed */
   -webkit-overflow-scrolling: touch;
 }
 
 /* if the parent section had a border that could overlap, keep the viewer above it */
-.generic-data-viewer-root { /* adjust the actual root class name if different */
+.generic-data-viewer-root {
+  /* adjust the actual root class name if different */
   position: relative;
   z-index: 2;
 }
 
+/* the scrolling area must contain wide tables and provide its own horizontal scrollbar */
+.masterdata-tbody-scroll,
+.masterdata-table-container,
+.masterdata-scroll {
+  min-width: 0;
+  /* allow container to be sized by parent */
+  overflow-x: auto;
+  /* horizontal scroll when table wider than container */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
+}
+
 .masterdata-table-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    padding: 2px;
-    overflow: hidden;
-    min-width: 0;
-    /* prevent flex shrink */
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 2px;
+  overflow: hidden;
+  min-width: 0;
+  /* prevent flex shrink */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header stays visible; will follow horizontally via syncHeaderScroll */
 .masterdata-table-header {
-    flex: 0 0 auto;
-    width: 100%;
-    overflow: hidden;
-    min-width: 0;
-    will-change: transform;
+  flex: 0 0 auto;
+  width: 100%;
+  overflow: hidden;
+  min-width: 0;
+  will-change: transform;
 }
 
 /* tbody is the scroll region for both axes */
 .masterdata-tbody-scroll {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-gutter: stable both-edges;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
 }
 
 /* Table sizing: fill container when narrow, grow when wide (no shrink) */
 .masterdata-table {
-    width: auto;               /* do not force 100% stretch; minWidth is controlled inline */
-    min-width: 0;
-    box-sizing: border-box;
-    border-collapse: collapse; /* collapsed borders so cells share borders */
+  width: auto;
+  /* do not force 100% stretch; minWidth is controlled inline */
+  min-width: 0;
+  table-layout: fixed;
+  box-sizing: border-box;
+  border-collapse: collapse;
+  /* collapsed borders so cells share borders */
 }
 
 /* Cell styling */
 .masterdata-table th,
 .masterdata-table td {
-    border: 1px solid #888;
-    padding: 2px 6px;
-    text-align: left;
-    background: #fff;
-    height: 18px;
-    vertical-align: middle;
-    box-sizing: border-box;
+  border: 1px solid #888;
+  padding: 2px 6px;
+  text-align: left;
+  background: #fff;
+  height: 18px;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
 .masterdata-table th {
-    background: #f0f0f0;
-    position: relative;
-    user-select: none;
-    cursor: pointer;
+  background: #f0f0f0;
+  position: relative;
+  user-select: none;
+  cursor: pointer;
 }
 
 .masterdata-table td {
-    overflow: hidden;
-    position: relative;
+  overflow: hidden;
+  position: relative;
 }
 
 .masterdata-table td div[title]:hover::after {
-    content: attr(title);
-    position: absolute;
-    background: #222;
-    color: #fff;
-    padding: 4px 6px;
-    border-radius: 4px;
-    font-size: 0.85em;
-    white-space: nowrap;
-    transform: translateY(-120%);
-    z-index: 10;
+  content: attr(title);
+  position: absolute;
+  background: #222;
+  color: #fff;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  white-space: nowrap;
+  transform: translateY(-120%);
+  z-index: 10;
 }
 
 .masterdata-table tbody tr:nth-child(odd) td {
-    background: #fff;
+  background: #fff;
 }
 
 .masterdata-table tbody tr:nth-child(even) td {
-    background: #eaeaea;
+  background: #eaeaea;
 }
 
 .masterdata-table tbody tr:hover td {
-    background: #e3f9fc !important;
+  background: #dcf8c6ab !important;
 }
 
 .masterdata-table .row-selected td,
 tr.row-selected td {
-    background: #e0f7fa !important;
+  background: #DCF8C6 !important;
 }
 
 .cell-content {
-    /* Ellipsis mechanics */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  /* Ellipsis mechanics */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
-    /* Flex-shrink essentials: let flex sizing control the used width */
-    flex: 1 1 0;
-    width: 0;
-    /* <-- critical: without this, the node keeps content width */
-    min-width: 0;
-    /* allow shrinking below content size */
-    max-width: 100%;
-    box-sizing: border-box;
-    position: relative;
+  /* Flex-shrink essentials: let flex sizing control the used width */
+  flex: 1 1 0;
+  width: 0;
+  /* <-- critical: without this, the node keeps content width */
+  min-width: 0;
+  /* allow shrinking below content size */
+  max-width: 100%;
+  box-sizing: border-box;
+  position: relative;
 }
 
 .td-editable {
-    border: 2px solid #1900fd !important;
+  border: 2px solid #1900fd !important;
 }
 
 .table-input {
-    width: 100%;
-    height: 14px;
-    padding: 0;
-    margin: 0;
-    box-sizing: border-box;
-    background: inherit !important;
-    color: inherit;
-    border: none;
-    font-family: inherit;
-    font-size: inherit;
-    font-weight: inherit;
-    vertical-align: middle;
-    outline: none;
+  width: 100%;
+  height: 14px;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  background: inherit !important;
+  color: inherit;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  vertical-align: middle;
+  outline: none;
 }
 
 .table-input:focus {
-    background: #e6f0ff;
+  background: #e6f0ff;
 }
 
 .sort-arrow {
-    position: absolute;
-    right: 6px;
-    bottom: 2px;
-    font-size: 1em;
-    color: #222;
-    pointer-events: none;
+  position: absolute;
+  right: 6px;
+  bottom: 2px;
+  font-size: 1em;
+  color: #222;
+  pointer-events: none;
 }
 
 .col-resizer {
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 6px;
-    height: 100%;
-    cursor: col-resize;
-    z-index: 10;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.cell-icon {
+  width: 32px;
+  height: 32px;
+  max-width: 32px;
+  max-height: 32px;
+  vertical-align: middle;
 }
 
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
 }
 
 .modal-content {
-    background: #fff;
-    padding: 24px;
-    border-radius: 8px;
-    min-width: 320px;
-    max-width: 90vw;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
-    position: relative;
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
+  min-width: 320px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  position: relative;
 }
 
 .modal-close {
-    position: absolute;
-    top: 8px;
-    right: 12px;
-    background: transparent;
-    border: none;
-    font-size: 1.2em;
-    cursor: pointer;
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
 }
 </style>
