@@ -2,7 +2,8 @@
     <div class="dashboard-layout">
         <div class="company-data" :style="{ width: '70%', maxWidth: '1300px' }">
             <!-- Companies -->
-            <section ref="companiesSection" class="dashboard-block companies-block" :style="{ height: companiesHeight + 'px' }">
+            <section ref="companiesSection" class="dashboard-block companies-block"
+                :style="{ height: companiesHeight + 'px' }">
                 <GenericDataViewer ref="companyViewer" page="dashboard" element="Company" :user="userId"
                     :filter="{ searchFor: '' }" :featuresEnabled="[false, false, false, true, true]"
                     :tableHeight="companiesHeight" :containerWidth="mainAreaWidth" @rowSelected="onCompanySelected" />
@@ -12,7 +13,8 @@
             <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('companies-branches', $event)"></div>
 
             <!-- Branches -->
-            <section ref="branchesSection" class="dashboard-block branches-block" :style="{ height: branchesHeight + 'px' }">
+            <section ref="branchesSection" class="dashboard-block branches-block"
+                :style="{ height: branchesHeight + 'px' }">
                 <GenericDataViewer ref="branchViewer" page="dashboard" element="Branch" :user="userId"
                     :filter="companyFilter" :featuresEnabled="[false, false, false, false, false]"
                     :tableHeight="branchesHeight" :containerWidth="mainAreaWidth" @rowSelected="onBranchSelected" />
@@ -22,7 +24,8 @@
             <div class="divider" ref="divider2" @pointerdown.prevent="startDrag('branches-persons', $event)"></div>
 
             <!-- Persons -->
-            <section ref="personsSection" class="dashboard-block persons-block" :style="{ height: personsHeight + 'px' }">
+            <section ref="personsSection" class="dashboard-block persons-block"
+                :style="{ height: personsHeight + 'px' }">
                 <GenericDataViewer ref="personViewer" page="dashboard" element="Person" :user="userId"
                     :filter="companyFilter" :featuresEnabled="[false, false, false, false, false]"
                     :tableHeight="personsHeight" :containerWidth="mainAreaWidth" @rowSelected="onPersonSelected" />
@@ -53,9 +56,6 @@ export default {
             _pointerId: null,
             _lastY: null,            // <-- incremental approach
             minSectionHeight: 80,
-
-            // RAF throttle (kept for compatibility but not required)
-            _rafPending: null,
 
             sidebarWidth: 400,
             mainAreaWidth: window.innerWidth - 400 - 10,
@@ -121,7 +121,7 @@ export default {
         // pointer drag
         startDrag(pair, evt) {
             try {
-                if (evt && evt.currentTarget && 
+                if (evt && evt.currentTarget &&
                     typeof evt.currentTarget.setPointerCapture === 'function') {
                     evt.currentTarget.setPointerCapture(evt.pointerId);
                 }
@@ -131,100 +131,86 @@ export default {
             this._dragging = pair;
             this._lastY = Number(evt && evt.clientY) || 0;
 
+            // always bind fresh handlers so `this` is correct and removal is reliable
+            this._boundPointerMove = this._onPointerMove.bind(this);
+            this._boundPointerUp = this._onPointerUp.bind(this);
+
+            window.addEventListener('pointermove', this._boundPointerMove, { passive: false, capture: true });
+            window.addEventListener('pointerup', this._boundPointerUp, { capture: true });
+            window.addEventListener('pointercancel', this._boundPointerUp, { capture: true });
+
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'row-resize';
-            this._addPointerListeners();
-
-            console.debug('startDrag', 
-                            { dragging: this._dragging, 
-                              lastY: this._lastY, 
-                              companiesHeight: this.companiesHeight, 
-                              branchesHeight: this.branchesHeight, 
-                              personsHeight: this.personsHeight });
         },
 
-_addPointerListeners() {
-    // always re-bind to ensure `this` is the component instance
-    this._boundPointerMove = this._onPointerMove.bind(this);
-    this._boundPointerUp = this._onPointerUp.bind(this);
+       _removePointerListeners() {
+            if (this._boundPointerMove) {
+                try { window.removeEventListener('pointermove', this._boundPointerMove, { capture: true }); } catch (e) { }
+                this._boundPointerMove = null;
+            }
+            if (this._boundPointerUp) {
+                try {
+                    window.removeEventListener('pointerup', this._boundPointerUp, { capture: true });
+                    window.removeEventListener('pointercancel', this._boundPointerUp, { capture: true });
+                } catch (e) { }
+                this._boundPointerUp = null;
+            }
 
-    window.addEventListener('pointermove', this._boundPointerMove, { passive: false, capture: true });
-    window.addEventListener('pointerup', this._boundPointerUp, { capture: true });
-    window.addEventListener('pointercancel', this._boundPointerUp, { capture: true });
-},
+            // restore page-level styles and clear pointer id
+            try {
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
+            } catch (e) { /* ignore */ }
 
-_removePointerListeners() {
-    if (this._boundPointerMove) {
-        try { window.removeEventListener('pointermove', this._boundPointerMove, { capture: true }); } catch (e) {}
-        this._boundPointerMove = null;
-    }
-    if (this._boundPointerUp) {
-        try {
-            window.removeEventListener('pointerup', this._boundPointerUp, { capture: true });
-            window.removeEventListener('pointercancel', this._boundPointerUp, { capture: true });
-        } catch (e) {}
-        this._boundPointerUp = null;
-    }
-},
+            this._pointerId = null;
+        },
 
-_onPointerMove(evt) {
-  console.debug('_onPointerMove fired', { pointerId: evt && evt.pointerId, clientY: evt && evt.clientY, dragging: this._dragging });
-  if (!this._dragging) return;
-  if (this._pointerId !== null && evt && evt.pointerId !== this._pointerId) return;
-  if (evt) evt.preventDefault();
+        _onPointerMove(evt) {
+            if (!this._dragging) return;
+            if (this._pointerId !== null && evt && evt.pointerId !== this._pointerId) return;
+            if (evt) evt.preventDefault();
 
-  const clientY = (evt && evt.clientY) ? Number(evt.clientY) : NaN;
-  if (!isFinite(clientY)) return;
-  let dy = clientY - Number(this._lastY || 0);
-  this._lastY = clientY;
-  if (!isFinite(dy) || dy === 0) return;
+            const clientY = (evt && evt.clientY) ? Number(evt.clientY) : NaN;
+            if (!isFinite(clientY)) return;
+            let dy = clientY - Number(this._lastY || 0);
+            this._lastY = clientY;
+            if (!isFinite(dy) || dy === 0) return;
 
-  const compRef = this.$refs.companiesSection;
-  const branRef = this.$refs.branchesSection;
-  const persRef = this.$refs.personsSection;
-  const parentRect = this.$el ? this.$el.getBoundingClientRect() : null;
+            const compRef = this.$refs.companiesSection;
+            const branRef = this.$refs.branchesSection;
+            const persRef = this.$refs.personsSection;
 
-  const currCompanies = compRef ? compRef.getBoundingClientRect().height : Number(this.companiesHeight) || 0;
-  const currBranches  = branRef ? branRef.getBoundingClientRect().height : Number(this.branchesHeight) || 0;
-  const currPersons   = persRef ? persRef.getBoundingClientRect().height : Number(this.personsHeight) || 0;
+            const currCompanies = compRef ? compRef.getBoundingClientRect().height : Number(this.companiesHeight) || 0;
+            const currBranches = branRef ? branRef.getBoundingClientRect().height : Number(this.branchesHeight) || 0;
+            const currPersons = persRef ? persRef.getBoundingClientRect().height : Number(this.personsHeight) || 0;
 
-  // debug: parent height and sums
-  const parentHeight = parentRect ? parentRect.height : NaN;
-  const sum = (currCompanies + currBranches + currPersons);
-  console.debug('sizes', { parentHeight, currCompanies, currBranches, currPersons, sum, dy });
+            const minH = Number(this.minSectionHeight) || 0;
 
-  // try with zero min to confirm
-  const minH = this.minSectionHeight;
-  if (this._dragging === 'companies-branches') {
-    const a = Math.max(minH, Math.round(currCompanies + dy));
-    const b = Math.max(minH, Math.round(currBranches - dy));
-    // console.debug('attempt', { a, b });
-    if (compRef) compRef.style.height = a + 'px';
-    if (branRef) branRef.style.height = b + 'px';
-    this.companiesHeight = a;
-    this.branchesHeight = b;
-  } else if (this._dragging === 'branches-persons') {
-    const b = Math.max(minH, Math.round(currBranches + dy));
-    const p = Math.max(minH, Math.round(currPersons - dy));
-    // console.debug('attempt', { b, p });
-    if (branRef) branRef.style.height = b + 'px';
-    if (persRef) persRef.style.height = p + 'px';
-    this.branchesHeight = b;
-    this.personsHeight = p;
-  }
+            if (this._dragging === 'companies-branches') {
+                const a = Math.max(minH, Math.round(currCompanies + dy));
+                const b = Math.max(minH, Math.round(currBranches - dy));
+                if (compRef) compRef.style.height = a + 'px';
+                if (branRef) branRef.style.height = b + 'px';
+                this.companiesHeight = a;
+                this.branchesHeight = b;
+            } else if (this._dragging === 'branches-persons') {
+                const b = Math.max(minH, Math.round(currBranches + dy));
+                const p = Math.max(minH, Math.round(currPersons - dy));
+                if (branRef) branRef.style.height = b + 'px';
+                if (persRef) persRef.style.height = p + 'px';
+                this.branchesHeight = b;
+                this.personsHeight = p;
+            }
 
-  this._callChildrenCalc();
-},
+            this._callChildrenCalc();
+        },
 
         _onPointerUp(evt) {
             if (this._pointerId !== null && evt && evt.pointerId !== undefined && evt.pointerId !== this._pointerId) return;
             this._dragging = null;
             this._pointerId = null;
             this._lastY = null;
-            document.body.style.userSelect = '';
-            document.body.style.cursor = '';
             this._removePointerListeners();
-            if (this._rafPending) { cancelAnimationFrame(this._rafPending); this._rafPending = null; }
             this.$nextTick(() => this._callChildrenCalc());
         },
 
@@ -253,50 +239,59 @@ _onPointerMove(evt) {
 <style scoped>
 *,
 *::before,
-*::after { box-sizing: border-box; }
-
-.dashboard-layout { 
-    display: flex; 
-    height: 100vh; 
-    width: 100vw; 
-    overflow: hidden; 
+*::after {
+    box-sizing: border-box;
 }
 
-.company-data { 
-    flex: 1; 
-    display: flex; 
-    flex-direction: column; 
-    gap: 8px; 
-    padding: 8px; 
+.dashboard-layout {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
 }
 
-.dashboard-block { 
-  box-sizing: border-box;
-  /* allow inner viewer to show its own scrollbars — don't create section scrollbars */
-  overflow: visible;        /* was overflow-y: auto; overflow-x: hidden; */
-  /* keep any optional visual separation lighter or removed */
-  border-right: none;
+.company-data {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
 }
-.companies-block { 
-    min-height: 160px; 
+
+.dashboard-block {
+    box-sizing: border-box;
+    /* allow inner viewer to show its own scrollbars — don't create section scrollbars */
+    overflow: visible;
+    /* was overflow-y: auto; overflow-x: hidden; */
+    /* keep any optional visual separation lighter or removed */
+    border-right: none;
 }
-.branches-block { 
-    min-height: 120px; 
+
+.companies-block {
+    min-height: 160px;
 }
-.persons-block { 
-    min-height: 120px; 
+
+.branches-block {
+    min-height: 120px;
+}
+
+.persons-block {
+    min-height: 120px;
 }
 
 .divider {
-  height: 8px;
-  cursor: row-resize;
-  display: block;
-  margin: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.02), rgba(255,255,255,0.02));
-  border-top: 1px solid rgba(0,0,0,0.1);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  touch-action: none;
-  z-index: 5;
+    height: 8px;
+    cursor: row-resize;
+    display: block;
+    margin: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(255, 255, 255, 0.02));
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    touch-action: none;
+    z-index: 5;
 }
-.divider:hover { background: rgba(0,0,0,0.04); }
+
+.divider:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="masterdata-bg" :style="rootContainerStyle" @click="deselectRow">
+  <div class="generic-data-viewer-root" :style="rootContainerStyle" @click="deselectRow">
     <div class="masterdata-content">
       <!-- Action bar -->
       <div v-if="anyActionEnabled" class="action-icons">
@@ -20,7 +20,7 @@
       <!-- table container: use tableHeight prop for an explicit container height -->
       <div class="masterdata-table-container" :style="{ height: tableHeight + 'px', padding: '2px 2px 0 2px' }">
         <div class="masterdata-table-header" ref="headerRef">
-          <table class="masterdata-table">
+          <table class="masterdata-table" :style="{ minWidth: localTableWidth + 'px' }">
             <colgroup>
               <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
             </colgroup>
@@ -37,7 +37,7 @@
         </div>
 
         <div class="masterdata-tbody-scroll" ref="tbodyScroll" @scroll="syncHeaderScroll" :style="{ height: bodyHeight + 'px' }">
-          <table class="masterdata-table">
+          <table class="masterdata-table" :style="{ minWidth: localTableWidth + 'px' }">
             <colgroup>
               <col v-for="col in visibleColumns" :key="col.idColConfigDetail" :style="{ width: (col.width || 120) + 'px' }" />
             </colgroup>
@@ -257,8 +257,11 @@ export default {
       var minOfTwo = Math.min(specified, screenW);
       this.effectiveContainerWidth = Math.max(0, minOfTwo - preserve);
 
-      var totalColWidth = this.visibleColumns.reduce(function(sum, col) { return sum + (col.width || 120); }, 0);
-      this.localTableWidth = Math.max(parentWidth, totalColWidth);
+      // total width defined by DB column widths (do NOT force expand to parent)
+      var totalColWidth = this.visibleColumns.reduce(function(sum, col) { return sum + (Number(col.width) || 120); }, 0);
+
+      // ensure a sane minimum but prefer totalColWidth so columns keep DB sizes
+      this.localTableWidth = Math.max( (totalColWidth || 0), 50 );
 
       this.refreshEllipsis();
 
@@ -358,11 +361,36 @@ export default {
         document.removeEventListener('mouseup', onUp);
         body.style.cursor = oldCursor || '';
         this.$nextTick(() => { this.calculateTableDimensions(); this.refreshEllipsis(); });
+        // persist updated column config (saveColConfig implemented below)
         if (typeof this.saveColConfig === 'function') this.saveColConfig({ ...col });
       };
 
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
+    },
+
+        // persist column config: try server, fallback to localStorage and emit event
+    async saveColConfig(col) {
+      try {
+        // best-effort PUT to generic utility endpoint; adjust to your real API if available
+        const body = JSON.parse(JSON.stringify(col));
+        await axios.put(`${API_BASE_URL}/utility/colConfigDetail/${col.idColConfigDetail || 0}`, 
+                        body);
+        this.$emit('colConfigSaved', { column: col });
+        return;
+      } catch (err) {
+        // fallback: localStorage per-user & table
+        try {
+          const key = `colConfig:${this.element}:user:${this.user || '0'}`;
+          const existing = JSON.parse(localStorage.getItem(key) || '{}');
+          existing[col.colName] = { width: col.width, savedAt: Date.now() };
+          localStorage.setItem(key, JSON.stringify(existing));
+          this.$emit('colConfigSaved', { column: col, persisted: 'local' });
+          return;
+        } catch (e) {
+          console.warn('saveColConfig fallback failed', e);
+        }
+      }
     },
 
     async reloadData() {
@@ -453,7 +481,7 @@ export default {
     vertical-align: middle;
 }
 
-.masterdata-bg,
+.generic-data-viewer-root,
 .masterdata-content,
 .masterdata-table-container,
 .masterdata-table-header,
@@ -462,33 +490,30 @@ export default {
 }
 
 /* Outer layout */
-.masterdata-bg {
-    width: 100%;
-    height: 100%;
-    background: #fff;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+.generic-data-viewer-root {
+  height: 100%;            /* inherit the section's px height */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;           /* allow children to shrink inside flex */
+  box-sizing: border-box;
 }
 
 .masterdata-content {
-    position: relative;             /* ensure z-index and shadow render correctly */
-    z-index: 2;
-    /* flex: 1; */
-    display: flex;
-    flex-direction: column;
-    /* padding-bottom: 24px; */
-    min-height: 0;
-    min-width: 0;
-    background-clip: padding-box;   /* avoid border being overlapped by children */
-
     width: 100%;
     box-sizing: border-box;
 
-    /* keep a subtle outer border but add an inset right edge so it's always visible */
+    display: flex;
+    flex-direction: column;
+
+    min-height: 0;
+
+    position: relative;             /* ensure z-index and shadow render correctly */
+    z-index: 2;
+
     border: 1px solid rgba(0, 0, 0, 0.6);
-    box-shadow: inset -1px 0 0 rgba(0,0,0,0.12); /* reliable right border visual */
+    background-clip: padding-box;   /* avoid border being overlapped by children */
 }
+
 /* ensure the scrolling element inside the viewer shows a native scrollbar */
 .masterdata-scroll,
 .masterdata-table-container,
@@ -529,24 +554,19 @@ export default {
 /* tbody is the scroll region for both axes */
 .masterdata-tbody-scroll {
     flex: 1 1 auto;
-    width: 100%;
-    overflow-y: auto;
-    /* vertical scroll when rows exceed height */
-    overflow-x: auto;
-    /* horizontal scroll when columns exceed width */
-    min-width: 0;
     min-height: 0;
-    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     scrollbar-gutter: stable both-edges;
-    display: block;
 }
 
 /* Table sizing: fill container when narrow, grow when wide (no shrink) */
 .masterdata-table {
-    table-layout: fixed;
-    border-collapse: collapse;
-    width: max-content;
-
+    width: auto;               /* do not force 100% stretch; minWidth is controlled inline */
+    min-width: 0;
+    box-sizing: border-box;
+    border-collapse: collapse; /* collapsed borders so cells share borders */
 }
 
 /* Cell styling */
