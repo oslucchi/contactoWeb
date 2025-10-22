@@ -48,20 +48,50 @@
                 :style="{ width: (col.width || 120) + 'px' }" />
             </colgroup>
             <tbody>
-              <tr v-for="(item, rowIdx) in sortedItems" :key="getRowIdFromData(item, rowIdx)"
-                :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }">
-                <td v-for="col in visibleColumns" :key="col.idColConfigDetail"
+              <tr 
+                v-for="(item, rowIdx) in sortedItems" 
+                :key="getRowIdFromData(item, rowIdx)"
+                :data-rowid="getRowIdFromData(item, rowIdx)"
+                :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }"
+              >
+                <td 
+                  v-for="col in visibleColumns" 
+                  :key="col.idColConfigDetail"
                   :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
-                  @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)">
-                  <div v-if="item[col.colName] !== undefined"
-                    style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;">
-                    <div v-if="selectedCell === col.colName && featuresEnabled[4]">
-                      <input class="table-input" v-model="item[col.colName]" style="width: 100%;" />
+                  @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)"
+                >
+                  <div 
+                    v-if="item[col.colName] !== undefined"
+                    style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;"
+                  >
+                    {{ 
+                      /* we want to allow the ability of injecting
+                       * custom html content into the cell.
+                       * in order to avoid repeated un-needed calls to DOMPurify
+                       * we limit the cells to be considered for editing only when
+                       * the cell has a renderLayout defined
+                       */
+                    }}
+                    <div 
+                        v-if="col.renderLayout && 
+                              String(item[col.renderLayout]).trim() !== '' && 
+                              hasValue(item, col)"
+                        class="cell-content"
+                        v-ellipsis="() => getCellTitle(item, col)" 
+                        style="flex: 1 1 auto; min-width: 0;"  
+                    >
+                      <div v-if="selectedCell === col.colName && featuresEnabled[4]">
+                        <input class="table-input" v-model="item[col.colName]" style="width: 100%;" />
+                      </div>
+                      <div v-else v-html="renderCellHtml(item, col)"></div>
                     </div>
-                    <div v-else class="cell-content" v-ellipsis v-html="renderCellHtml(item, col)"></div>
-                  </div>
-                  <div v-else>
-                    {{ item[col.colName] }}
+                    <div 
+                        v-else 
+                        class="cell-content" 
+                        v-ellipsis="() => getCellTitle(item, col)" 
+                        style="flex: 1 1 auto; min-width: 0;">
+                      <span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box;">{{ item[col.colName] }}</span>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -91,10 +121,22 @@ import ColConfigHeader from '@/types/ColConfigHeader';
 import DOMPurify from 'dompurify';
 
 function getClassByName(name) {
-  return require(`@/types/${name}`).default;
+  if (!name) {
+    return Object;
+  }
+  try {
+    // require may return module or module.default depending on exports
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    const mod = require(`@/types/${name}`);
+    return (mod && mod.default) ? mod.default : mod;
+  } catch (e) {
+    console.error(`getClassByName: could not load class "${name}", returning Object fallback`, e);
+    return Object;
+  }
 }
 
 function applyEllipsis(el) {
+  // ensure ellipsis css (idempotent)
   el.style.overflow = 'hidden';
   el.style.textOverflow = 'ellipsis';
   el.style.whiteSpace = 'nowrap';
@@ -102,8 +144,22 @@ function applyEllipsis(el) {
   el.style.maxWidth = '100%';
   el.style.boxSizing = 'border-box';
 
-  if (el.scrollWidth > el.clientWidth) {
-    el.setAttribute('title', (el.textContent || '').trim());
+  // measure overflow first (single read)
+  const clientW = el.clientWidth;
+  const scrollW = el.scrollWidth;
+  const isOverflowing = scrollW > clientW;
+
+  if (isOverflowing) {
+    // compute title lazily only when needed (call thunk or use provided string)
+    let titleText = '';
+    try {
+      if (typeof altOrGetter === 'function') titleText = String(altOrGetter() || '').trim();
+      else titleText = (typeof altOrGetter === 'string') ? altOrGetter.trim() : (el.textContent || '').trim();
+    } catch (e) {
+      titleText = (el.textContent || '').trim();
+    }
+    if (titleText) el.setAttribute('title', titleText);
+    else el.removeAttribute('title');
   } else {
     el.removeAttribute('title');
   }
@@ -133,6 +189,10 @@ export default {
       selectedRowId: null,
       selectedCell: null,
       showEditModal: false,
+      // new report modal state
+      showReportModal: false,
+      reportDraft: '',
+
       selectedItem: null,
       sortColumn: null,
       sortDirection: null,
@@ -142,6 +202,8 @@ export default {
       localTableWidth: 0,
       effectiveContainerWidth: 0,
       _externalListeners: [],
+
+      _ellipsisScheduledFlag: false,
     };
   },
 
@@ -242,13 +304,92 @@ export default {
   },
 
   directives: {
+    // Lightweight directive: mark elements and store thunk; actual work is done by refreshEllipsis()
     ellipsis: {
-      inserted(el) { applyEllipsis(el); },
-      componentUpdated(el) { applyEllipsis(el); }
+      inserted(el, binding) {
+        // mark element for later processing
+        el.setAttribute('data-ellipsis', '1');
+        if (binding && binding.value) {
+          if (typeof binding.value === 'function') _ellipsisThunks.set(el, binding.value);
+          else _ellipsisThunks.set(el, () => binding.value);
+        } else {
+          _ellipsisThunks.set(el, null);
+        }
+      },
+      componentUpdated(el, binding) {
+        // update stored thunk if it changes; keep DOM work out of render path
+        if (binding && binding.value) {
+          if (typeof binding.value === 'function') _ellipsisThunks.set(el, binding.value);
+          else _ellipsisThunks.set(el, () => binding.value);
+        } else {
+          _ellipsisThunks.set(el, null);
+        }
+      },
+      unbind(el) {
+        el.removeAttribute('data-ellipsis');
+        _ellipsisThunks.delete(el);
+      }
     }
   },
 
   methods: {
+      // schedule a single batched pass to compute ellipsis/title for marked cells
+    refreshEllipsis() {
+      if (_ellipsisScheduled) return;
+      _ellipsisScheduled = true;
+      const runner = (cb) => {
+        if (typeof window.requestIdleCallback === 'function') {
+          window.requestIdleCallback(cb, { timeout: 250 });
+        } else {
+          window.requestAnimationFrame(cb);
+        }
+      };
+      runner(() => {
+        _ellipsisScheduled = false;
+        if (!this.$el) return;
+        // only select marked elements
+        const nodes = this.$el.querySelectorAll('[data-ellipsis="1"]');
+        if (!nodes || !nodes.length) return;
+        // batch application: avoid layout thrash by doing minimal per-element reads/writes
+        nodes.forEach(el => {
+          try {
+            const thunk = _ellipsisThunks.get(el);
+            applyEllipsis(el, thunk);
+          } catch (e) {
+            // ignore per-element errors to keep loop robust
+            // console.warn('applyEllipsis failed for node', e);
+          }
+        });
+      });
+    },
+    
+    // compute a friendly title for the cell: prefer the raw value used for rendering,
+    // strip HTML if needed so tooltip is plain text
+    getCellTitle(item, col) {
+      const name = this.getCellName(col);
+      let v = name && item ? item[name] : '';
+      if (v == null) v = '';
+      // if value contains HTML (or renderLayout is HTML), strip tags for tooltip
+      if (typeof v === 'string' && /<[^>]+>/.test(v)) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = v;
+        return (tmp.textContent || tmp.innerText || '').trim();
+      }
+      // otherwise return plain string representation
+      return String(v).trim();
+    },
+
+    getCellName(col) {
+      // default: the column value lives under col.colName
+      // if you want to store icon names in a different item field, set col.renderField = 'otherField' in your col config
+      return (col && col.renderField) ? col.renderField : (col && col.colName) ? col.colName : null;
+    },
+    hasValue(item, col) {
+      const name = this.getCellName(col);
+      const v = name && item ? item[name] : undefined;
+      return v !== null && v !== undefined && v !== '';
+    },
+
     // normalize input to Date (accept Date object, ISO string, seconds or ms number)
     _toDate(value) {
       if (value == null || value === '') return null;
@@ -309,18 +450,27 @@ export default {
       if (name == null) return '';
       const base = String(name).trim();
       if (!base) return '';
-      const candidates = [base, `${base}.png`, `${base}.svg`, `${base}.jpg`, `${base}.jpeg`, `${base}.gif`];
+      const candidates = [base]; //, `${base}.png`, `${base}.svg`, `${base}.jpg`, `${base}.jpeg`, `${base}.gif`];
       for (let i = 0; i < candidates.length; i++) {
         try {
           // eslint-disable-next-line global-require, import/no-dynamic-require
           const r = require(`@/assets/icons/${candidates[i]}`);
-          if (r) return (typeof r === 'string') ? r : (r.default || r);
+          if (r) {
+            return (typeof r === 'string') ? r : (r.default || r);
+          }
         } catch (e) {
           // try next
         }
       }
       // fallback to public-served path (assumes /assets/icons/* is served)
       return `/assets/icons/${encodeURIComponent(base)}.png`;
+    },
+    // helper: cache key for a cell
+    _cellCacheKey(item, col) {
+      const id = this.getRowIdFromData(item, -1);
+      const val = (item && col && (col.colName in item)) ? item[col.colName] : '';
+      const layout = (col && col.renderLayout) ? String(col.renderLayout) : '';
+      return `${id}::${col ? col.colName : ''}::${layout}::${String(val)}`;
     },
 
     // return safe HTML string for a cell (ICON/DATETIME/NUMBER/STRING)
@@ -335,7 +485,6 @@ export default {
       const type = (firstSpace > 0 ? layoutStr.slice(0, firstSpace) : layoutStr).toUpperCase();
       const fmt = (firstSpace > 0 ? layoutStr.slice(firstSpace + 1).trim() : '');
 
-      console.debug('renderCellHtml:', { raw, type, fmt });
       let html = '';
       switch (type) {
         case 'ICON': {
@@ -347,14 +496,14 @@ export default {
             const alt = this.escapeAttr(iconName);
 
             // parse optional size from format token, e.g. "ICON 24" or "ICON 24x24"
-            let w = 32, h = 32;
+            let w = 25, h = 25;
             if (fmt) {
               const m = fmt.match(/^(\d+)(?:x(\d+))?/);
               if (m) { w = parseInt(m[1], 10) || w; h = parseInt(m[2], 10) || w; }
             }
-
             html = `<img src="${s}" alt="${alt}" class="cell-icon" style="width:${w}px;height:${h}px;max-width:${w}px;max-height:${h}px;object-fit:contain;"/>`;
-          } else {
+          } 
+          else {
             html = this.escapeHtml(raw == null ? '' : String(raw));
           }
           break;
@@ -391,7 +540,7 @@ export default {
       var parentWidth = (this.$el && this.$el.parentElement && this.$el.parentElement.offsetWidth) || 0;
       var screenW = window.innerWidth || document.documentElement.clientWidth || parentWidth || 0;
       var specified;
-      if (typeof this.containerWidth === 'number' && this.containerWidth > 0) {
+      if (this.containerWidth && typeof this.containerWidth === 'number' && this.containerWidth > 0) {
         specified = this.containerWidth;
       } else {
         specified = (typeof this.capWidth === 'number' && this.capWidth > 0) ? this.capWidth : (parentWidth || screenW);
@@ -430,10 +579,30 @@ export default {
       });
     },
 
+
+      // add three-state column sorting: asc -> desc -> natural (off)
+    handleSort(colName) {
+      if (!colName) return;
+      if (this.sortColumn !== colName) {
+        this.sortColumn = colName;
+        this.sortDirection = 'asc';
+      } else if (this.sortDirection === 'asc') {
+        this.sortDirection = 'desc';
+      } else {
+        // third click -> return to natural ordering
+        this.sortColumn = null;
+        this.sortDirection = null;
+      }
+      // force a re-render and notify parent if needed
+      // this.tableRenderKey++;
+      this.$emit('sorted', { column: this.sortColumn, direction: this.sortDirection });
+    },
+
     getRowIdFromData(item, rowIdx) {
       if (!this.tableConfig || !this.tableConfig.columns) return rowIdx;
-      const idValue = item[this.itemIdField];
-      return idValue || rowIdx;
+      const idValue = item && this.itemIdField ? item[this.itemIdField] : undefined;
+      // treat 0 and empty-string as valid IDs; only fallback when id is null/undefined
+      return (idValue !== null && idValue !== undefined) ? idValue : rowIdx;
     },
 
     emitStructuredSelection(item, rowIdx) {
@@ -542,7 +711,8 @@ export default {
           localStorage.setItem(key, JSON.stringify(existing));
           this.$emit('colConfigSaved', { column: col, persisted: 'local' });
           return;
-        } catch (e) {
+        } 
+        catch (e) {
           console.warn('saveColConfig fallback failed', e);
         }
       }
@@ -550,7 +720,8 @@ export default {
 
     async reloadData() {
       if (!this.tableConfig) return;
-      const ClassType = getClassByName(this.tableConfig.cliClassName);
+      const ClassType = (this.tableConfig && this.tableConfig.cliClassName) ? 
+                              getClassByName(this.tableConfig.cliClassName) : Object;
       const dataRes = await axios.get(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, { params: this.filter });
       this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
         const item = obj instanceof ClassType ? obj : new ClassType(obj);
@@ -564,7 +735,11 @@ export default {
       });
 
       if (typeof this.loadData === 'function') {
-        try { this.loadData(); } catch (e) { console.warn('loadData failed', e); }
+        try {
+          this.loadData();
+        } catch (e) {
+          console.warn('loadData failed', e);
+        }
       }
     },
 

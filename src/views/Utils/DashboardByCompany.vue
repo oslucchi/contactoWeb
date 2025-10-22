@@ -67,14 +67,35 @@
                     :containerWidth="eventAreaWidth" 
                     @rowSelected="onEventSelected" />
             </section>
-            <section ref="eventsSection" 
+            <section ref="reportsSection" 
                      class="dashboard-block events-block"
                      :style="{ minHeight: '50%', maxHeight: '50%', width: sidebarWidth + 'px', padding: '8px' }">
-            <span style="height: 50%; min-height: 50%; display: block; border: 1px solid rgba(0,0,0,1); box-sizing: border-box; padding: 8px; overflow: auto;">
-                (Additional sidebar content can go here)
-            </span>
+                <GenericDataViewer 
+                    ref="reportsViewer" 
+                    page="dashboard" 
+                    element="Report" 
+                    :user="userId"
+                    :filter="eventFilter"
+                    :featuresEnabled="[false, false, false, false, false]"
+                    :tableHeight="eventsHeight" 
+                    :containerWidth="eventAreaWidth" 
+                    @rowSelected="onReportSelected" />
             </section>
         </div>
+
+
+      <!-- Report modal: simple full-editor for report field -->
+      <div v-if="showReportModal" class="modal-overlay" @click.self="closeReportModal" role="dialog" aria-modal="true">
+        <div class="modal-content">
+          <button class="modal-close" @click="closeReportModal">X</button>
+          <h3>Edit report</h3>
+          <textarea v-model="reportDraft" rows="16" style="width:100%; box-sizing:border-box; font-family: monospace;"></textarea>
+          <div style="margin-top:12px; text-align:right;">
+            <button @click="saveReport">Save</button>
+            <button @click="closeReportModal" style="margin-left:8px;">Cancel</button>
+          </div>
+        </div>
+      </div>
     </div>
 </template>
 
@@ -90,10 +111,15 @@ export default {
             selectedBranch: null,
             companyFilter: { id: -1 },
             branchFilter: { id: -1 },
-
+            eventFilter: { id: -1 },
+            selectedEvent: null,
+            
             companiesHeight: 400,
             branchesHeight: 100,
             personsHeight: 220,
+            eventsHeight: 400,
+            reportsHeigth: 400,
+            eventAreaWidth: 350,
 
             // drag state
             _dragging: null,
@@ -103,6 +129,11 @@ export default {
 
             sidebarWidth: null,
             mainAreaWidth: 0,
+
+            showReportModal: false,
+            reportDraft: '',
+            reportModalItem: null,
+            reportModalRowIdx: null,
         };
     },
     mounted() {
@@ -196,14 +227,71 @@ export default {
             this.selectedEvent = payload && payload.item ? payload.item : null;
             this.eventFilter = id ? { id } : { id: -1 };
             this.$nextTick(() => {
-                if (this.$refs.eventViewer && typeof this.$refs.eventViewer.reloadData === 'function') {
-                    this.$refs.eventViewer.reloadData();
+                if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.reloadData === 'function') {
+                    this.$refs.reportsViewer.reloadData();
                 }
             });
         },
 
         onPersonSelected(payload) {
             console.log('person selected', payload);
+        },
+
+        onReportSelected(payload) {
+            const item = payload && payload.item ? payload.item : null;
+            const rowIdx = payload && (payload.rowIdx !== undefined) ? payload.rowIdx : null;
+
+            // Prefer viewer-local modal (GenericDataViewer.openReportModal implemented)
+            if (this.$refs && this.$refs.reportsViewer && typeof this.$refs.reportsViewer.openReportModal === 'function') {
+                try {
+                this.$refs.reportsViewer.openReportModal(item, rowIdx);
+                return;
+                } catch (e) {
+                console.warn('reportsViewer.openReportModal failed', e);
+                }
+            }
+            this.openDashboardReportModal(item, rowIdx);
+        },
+
+        // open dashboard modal and populate draft
+        openDashboardReportModal(item, rowIdx) {
+            this.reportModalItem = item || null;
+            this.reportModalRowIdx = rowIdx;
+            this.reportDraft = (item && item.report !== undefined) ? String(item.report) : '';
+            this.showReportModal = true;
+        },
+
+        closeReportModal() {
+            this.showReportModal = false;
+            this.reportDraft = '';
+            this.reportModalItem = null;
+            this.reportModalRowIdx = null;
+            },
+
+            // Save: prefer reportsViewer.saveItem, otherwise emit event for parent to handle persistence
+            async saveReportFromDashboard() {
+            if (!this.reportModalItem) return this.closeReportModal();
+            // update local item copy
+            this.reportModalItem.report = this.reportDraft;
+            try {
+                if (this.$refs && this.$refs.reportsViewer && typeof this.$refs.reportsViewer.saveItem === 'function') {
+                await this.$refs.reportsViewer.saveItem(this.reportModalItem);
+                } else {
+                // emit upward so app-level code can persist it
+                this.$emit('reportSave', { item: this.reportModalItem, rowIdx: this.reportModalRowIdx });
+                }
+            } catch (e) {
+                console.warn('saveReportFromDashboard failed', e);
+            }
+            this.closeReportModal();
+            // refresh the reports viewer to reflect changes
+            this.$nextTick(() => {
+                if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.reloadData === 'function') {
+                this.$refs.reportsViewer.reloadData();
+                } else if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.calculateTableDimensions === 'function') {
+                this.$refs.reportsViewer.calculateTableDimensions();
+                }
+            });
         },
 
         // pointer drag
@@ -408,5 +496,31 @@ export default {
 
 .divider:hover {
     background: rgba(0, 0, 0, 0.04);
+}
+.modal-overlay {
+  position: fixed;
+  left: 0; right: 0; top: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.35);
+  z-index: 9999;
+}
+.modal-content {
+  background: #fff;
+  max-width: 900px;
+  width: calc(100% - 48px);
+  border-radius: 6px;
+  padding: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+.modal-close {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  background: transparent;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
 }
 </style>
