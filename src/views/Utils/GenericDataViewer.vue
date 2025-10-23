@@ -583,7 +583,6 @@ export default {
           else {
             html = this.escapeHtml(raw == null ? '' : String(raw));
           }
-          console.debug('renderCellHtml: ICON resolved to', html.substring(0, 250));
           break;
         }
         case 'DATETIME':
@@ -929,6 +928,7 @@ export default {
 .generic-data-viewer-root,
 .masterdata-content {
   box-sizing: border-box;
+  height: 100%;
   width: 100%;
   min-width: 0;
   /* allow flex parent to constrain width */

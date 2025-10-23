@@ -69,9 +69,11 @@
                     @rowSelected="onPersonSelected" />
             </section>
         </div>
-        <div ref="sidebar" class="sidebar" :style="sidebarWidth !== null ? { width: sidebarWidth + 'px' } : {}">
+        <div ref="sidebar" 
+             class="sidebar" 
+             :style="sidebarWidth !== null ? { width: sidebarWidth + 'px' } : {}">
             <section ref="reportsSection" 
-                     class="dashboard-block events-block"
+                     class="dashboard-block reports-block"
                      :style="{ width: sidebarWidth + 'px', padding: '8px' }">
                 <GenericDataViewer 
                     ref="reportsViewer" 
@@ -83,6 +85,22 @@
                     :tableHeight="eventsHeight" 
                     :containerWidth="eventAreaWidth" 
                     @rowSelected="onReportSelected" />
+            </section>
+            <section ref="reportDetails" 
+                     class="dashboard-block reports-block"
+                     :style="{ width: sidebarWidth + 'px', padding: '8px' }">
+                <div v-if="selectedReport">
+                    <h3 style="color: rgb(114, 173, 69);">Details</h3>
+                    <div v-if="selectedEvent" style="width: 100%; height: 100%;">
+                        <p><strong>Date:</strong> {{ selectedEvent.date || 'N/A' }}</p>
+                        <span style="">
+                            <input style="width: 100%; min-height: 100%;" v-model="selectedReport.report" />
+                        </span>
+                    </div>
+                    <div v-else>
+                        <p>No event selected.</p>
+                    </div>
+                </div>
             </section>
         </div>
 
@@ -116,6 +134,7 @@ export default {
             branchFilter: { id: -1 },
             eventFilter: { id: -1 },
             selectedEvent: null,
+            selectedReport: null,
             
             companiesHeight: 400,
             branchesHeight: 100,
@@ -205,6 +224,10 @@ export default {
             }
 
             this.selectedBranch = null;
+            this.selectedEvent = null;
+            this.eventFilter = { id: -1 };
+            this.selectedReport = null;
+            this.selectedBranch = null;
 
             this.$nextTick(() => {
                 try {
@@ -230,10 +253,15 @@ export default {
             });
         },
 
+        onPersonSelected(payload) {
+            console.log('person selected', payload);
+        },
+
         onEventSelected(payload) {
             const id = payload && payload.id ? payload.id : null;
             this.selectedEvent = payload && payload.item ? payload.item : null;
             this.eventFilter = id ? { id } : { id: -1 };
+            this.selectedReport = null;
             this.$nextTick(() => {
                 if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.reloadData === 'function') {
                     this.$refs.reportsViewer.reloadData();
@@ -241,11 +269,11 @@ export default {
             });
         },
 
-        onPersonSelected(payload) {
-            console.log('person selected', payload);
-        },
-
         onReportSelected(payload) {
+            console.log('report selected', payload);
+            const id = payload && payload.id ? payload.id : null;
+            this.selectedReport = payload && payload.item ? payload.item : null;
+/*
             const item = payload && payload.item ? payload.item : null;
             const rowIdx = payload && (payload.rowIdx !== undefined) ? payload.rowIdx : null;
 
@@ -259,6 +287,7 @@ export default {
                 }
             }
             this.openDashboardReportModal(item, rowIdx);
+*/
         },
 
         // open dashboard modal and populate draft
@@ -516,6 +545,13 @@ export default {
     min-height: 120px;
 }
 
+.reports-block {
+    height: 100%;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    /* min-height: 200px; */
+}
 
 .divider {
     height: 8px;
