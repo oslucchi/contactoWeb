@@ -2,7 +2,7 @@
   <div class="generic-data-viewer-root" :style="rootContainerStyle" @click="deselectRow">
     <div class="masterdata-content" ref="masterdataContent">
       <!-- Action bar -->
-      <div v-if="anyActionEnabled" class="action-icons">
+      <div class="action-icons">
         <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
           <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
         </button>
@@ -15,6 +15,8 @@
         <button v-if="featuresEnabled[3]" @click.stop="searchElements">
           <img src="@/assets/icons/search.png" alt="Search" class="icon" />
         </button>
+                <!-- right aligned span -->
+        <span v-if="showTitle" class="action-right">{{ showTitle }}</span>
       </div>
 
       <!-- table container: use tableHeight prop for an explicit container height -->
@@ -281,6 +283,11 @@ export default {
       let idCol = this.tableConfig.columns.find(col => col.colName && col.colName.toLowerCase().startsWith('id'));
       if (!idCol) idCol = this.tableConfig.columns.find(col => col.position === 0);
       return idCol ? idCol.colName : null;
+    },
+    showTitle() {
+      console.log("showTable is ", this.tableConfig.showTitle);
+      if (!this.tableConfig || !this.tableConfig.showTitle) return '';
+        return this.tableConfig.showTitle;
     },
   },
 
@@ -893,7 +900,17 @@ export default {
   gap: 16px;
   margin-bottom: 12px;
 }
+/* this pushes the span to the far right while keeping buttons on the left */
+.action-icons .action-right {
+  margin-left: auto;
+  /* optional styling */
+  color: #333;
 
+  font-size: 1.5rem;
+  font-style: 'italic';
+  color: rgb(114, 173, 69);
+  padding-right: 8px;
+}
 .icon {
   width: 24px;
   height: 24px;

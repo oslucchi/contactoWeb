@@ -1,23 +1,40 @@
 <template>
     <div class="dashboard-layout">
         <div class="company-data">
-            <!-- Companies -->
-            <section ref="companiesSection" class="dashboard-block companies-block"
-                :style="{ height: companiesHeight + 'px' }">
-                <GenericDataViewer 
-                    ref="companyViewer" 
-                    page="dashboard" 
-                    element="Company" 
-                    :user="userId"
-                    :filter="{ searchFor: '' }" 
-                    :featuresEnabled="[false, false, false, true, true]"
-                    :tableHeight="companiesHeight" 
-                    :containerWidth="mainAreaWidth" 
-                    @rowSelected="onCompanySelected" />
-            </section>
+            <div class="companies-and-events" ref ="companiesAndEvents">
+                <!-- Companies -->
+                <section ref="companiesSection" class="dashboard-block companies-block"
+                >
+                    <GenericDataViewer 
+                        ref="companyViewer" 
+                        page="dashboard" 
+                        element="Company" 
+                        :user="userId"
+                        :filter="{ searchFor: '' }" 
+                        :featuresEnabled="[false, false, false, true, true]"
+                        :tableHeight="companiesHeight" 
+                        :containerWidth="mainAreaWidth" 
+                        @rowSelected="onCompanySelected" />
+                </section>
+                <!-- Events -->
+                <section ref="eventsSection" 
+                     class="dashboard-block events-block"
+                >
+                    <GenericDataViewer 
+                        ref="eventsViewer" 
+                        page="dashboard" 
+                        element="Event" 
+                        :user="userId"
+                        :filter="companyFilter"
+                        :featuresEnabled="[false, false, false, true, true]"
+                        :tableHeight="eventsHeight" 
+                        :containerWidth="eventAreaWidth" 
+                        @rowSelected="onEventSelected" />
+                </section>
+            </div>
 
             <!-- Divider -->
-            <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('companies-branches', $event)"></div>
+            <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('companiesAndEvents','branchesSection', $event)"></div>
 
             <!-- Branches -->
             <section ref="branchesSection" class="dashboard-block branches-block"
@@ -35,7 +52,7 @@
             </section>
 
             <!-- Divider -->
-            <div class="divider" ref="divider2" @pointerdown.prevent="startDrag('branches-persons', $event)"></div>
+            <div class="divider" ref="divider2" @pointerdown.prevent="startDrag('branchesSection','personsSection', $event)"></div>
 
             <!-- Persons -->
             <section ref="personsSection" class="dashboard-block persons-block"
@@ -53,23 +70,9 @@
             </section>
         </div>
         <div ref="sidebar" class="sidebar" :style="sidebarWidth !== null ? { width: sidebarWidth + 'px' } : {}">
-            <section ref="eventsSection" 
-                     class="dashboard-block events-block"
-                     :style="{ minHeight: '50%', maxHeight: '50%', width: sidebarWidth + 'px', padding: '8px' }">
-                <GenericDataViewer 
-                    ref="eventsViewer" 
-                    page="dashboard" 
-                    element="Event" 
-                    :user="userId"
-                    :filter="companyFilter"
-                    :featuresEnabled="[false, false, false, true, true]"
-                    :tableHeight="eventsHeight" 
-                    :containerWidth="eventAreaWidth" 
-                    @rowSelected="onEventSelected" />
-            </section>
             <section ref="reportsSection" 
                      class="dashboard-block events-block"
-                     :style="{ minHeight: '50%', maxHeight: '50%', width: sidebarWidth + 'px', padding: '8px' }">
+                     :style="{ width: sidebarWidth + 'px', padding: '8px' }">
                 <GenericDataViewer 
                     ref="reportsViewer" 
                     page="dashboard" 
@@ -134,6 +137,11 @@ export default {
             reportDraft: '',
             reportModalItem: null,
             reportModalRowIdx: null,
+
+            _stretchTargetName: null,
+            _shrinkTargetName: null,
+            _stretchTarget: null,
+            _shrinkTarget: null,
         };
     },
     mounted() {
@@ -295,7 +303,7 @@ export default {
         },
 
         // pointer drag
-        startDrag(pair, evt) {
+        startDrag(targetRefName, shrinkRefName, evt) {
             try {
                 if (evt && evt.currentTarget &&
                     typeof evt.currentTarget.setPointerCapture === 'function') {
@@ -304,7 +312,12 @@ export default {
             } catch (e) { /* ignore */ }
 
             this._pointerId = evt && evt.pointerId ? evt.pointerId : null;
-            this._dragging = pair;
+            this._dragging = true;
+            // cache ref names and nodes for the drag operation
+            this._stretchTargetName = targetRefName || null;
+            this._shrinkTargetName = shrinkRefName || null;
+            this._stretchTarget = (this.$refs && targetRefName) ? this.$refs[targetRefName] : null;
+            this._shrinkTarget = (this.$refs && shrinkRefName) ? this.$refs[shrinkRefName] : null;
             this._lastY = Number(evt && evt.clientY) || 0;
 
             // always bind fresh handlers so `this` is correct and removal is reliable
@@ -352,30 +365,31 @@ export default {
             this._lastY = clientY;
             if (!isFinite(dy) || dy === 0) return;
 
-            const compRef = this.$refs.companiesSection;
-            const branRef = this.$refs.branchesSection;
-            const persRef = this.$refs.personsSection;
-
-            const currCompanies = compRef ? compRef.getBoundingClientRect().height : Number(this.companiesHeight) || 0;
-            const currBranches = branRef ? branRef.getBoundingClientRect().height : Number(this.branchesHeight) || 0;
-            const currPersons = persRef ? persRef.getBoundingClientRect().height : Number(this.personsHeight) || 0;
-
             const minH = Number(this.minSectionHeight) || 0;
+            const topEl = this._stretchTarget;
+            const bottomEl = this._shrinkTarget;
+            if (topEl && bottomEl) {
+                const currTop = topEl.getBoundingClientRect().height;
+                const currBottom = bottomEl.getBoundingClientRect().height;
+                const newTop = Math.max(minH, Math.round(currTop + dy));
+                const newBottom = Math.max(minH, Math.round(currBottom - dy));
 
-            if (this._dragging === 'companies-branches') {
-                const a = Math.max(minH, Math.round(currCompanies + dy));
-                const b = Math.max(minH, Math.round(currBranches - dy));
-                if (compRef) compRef.style.height = a + 'px';
-                if (branRef) branRef.style.height = b + 'px';
-                this.companiesHeight = a;
-                this.branchesHeight = b;
-            } else if (this._dragging === 'branches-persons') {
-                const b = Math.max(minH, Math.round(currBranches + dy));
-                const p = Math.max(minH, Math.round(currPersons - dy));
-                if (branRef) branRef.style.height = b + 'px';
-                if (persRef) persRef.style.height = p + 'px';
-                this.branchesHeight = b;
-                this.personsHeight = p;
+                topEl.style.height = newTop + 'px';
+                bottomEl.style.height = newBottom + 'px';
+
+                // update stored numeric heights used by children (measure actual sections if present)
+                // if we changed top container, measure its children; otherwise update the two refs directly
+                if (this._stretchTargetName === 'companiesAndEvents') {
+                    const compRef = this.$refs.companiesSection;
+                    const eventsRef = this.$refs.eventsSection;
+                    if (compRef) this.companiesHeight = Math.round(compRef.getBoundingClientRect().height);
+                    if (eventsRef) this.eventsHeight = Math.round(eventsRef.getBoundingClientRect().height);
+                    if (bottomEl === this.$refs.branchesSection) this.branchesHeight = Math.round(newBottom);
+                } else {
+                    // generic mapping for named refs to data fields
+                    if (this._stretchTargetName === 'branchesSection') this.branchesHeight = Math.round(newTop);
+                    if (this._shrinkTargetName === 'personsSection') this.personsHeight = Math.round(newBottom);
+                }
             }
 
             this._callChildrenCalc();
@@ -384,6 +398,11 @@ export default {
         _onPointerUp(evt) {
             if (this._pointerId !== null && evt && evt.pointerId !== undefined && evt.pointerId !== this._pointerId) return;
             this._dragging = null;
+            // clear cached refs
+            this._stretchTargetName = null;
+            this._shrinkTargetName = null;
+            this._stretchTarget = null;
+            this._shrinkTarget = null;
             this._pointerId = null;
             this._lastY = null;
             this._removePointerListeners();
@@ -438,6 +457,30 @@ export default {
     width: 65%;
     /* max-width: 1300px; keep previous cap */
 }
+.companies-and-events {
+    display: flex;
+    gap: 8px;
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+    align-items: stretch;
+}
+
+/* make each top section stretch to container height so changing the container affects them */
+.companies-and-events > section {
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* make each section a flexible child and allow inner scroll/ellipsis */
+.companies-block,
+.events-block {
+  flex: 1 1 0;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 2px
+}
 
 /* right sidebar fixed width */
 .sidebar {
@@ -445,6 +488,7 @@ export default {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    height: 100%;
     min-width: 35%;  /* allow this flex child to shrink and prevent overflow */
     width: 35%;
     box-sizing: border-box;
@@ -472,15 +516,6 @@ export default {
     min-height: 120px;
 }
 
-/* make events section stretch to fill sidebar vertically */
-.events-block {
-    width: 100%;
-    height: 100%;
-    box-sizing: border-box;
-    min-height: 0;
-    overflow: visible;
-    padding: 8px;
-}
 
 .divider {
     height: 8px;
