@@ -57,11 +57,10 @@
                 :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }"
               >
                 <td 
-                  v-for="col in visibleColumns" 
-                  :key="col.idColConfigDetail"
-                  :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
-                  @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)"
-                >
+                    v-for="col in visibleColumns" 
+                    :key="col.idColConfigDetail"
+                    :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
+                    @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)"                >
                   <div 
                     v-if="item[col.colName] !== undefined"
                     style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;"
@@ -239,8 +238,18 @@ export default {
         if (this.$root && this.$root.$on) this.$root.$on(evtName, handler);
       });
     }
-  },
 
+    if (module && module.hot) {
+      module.hot.dispose(() => {
+        // use the *same* references you registered
+        window.removeEventListener('resize', this.calculateTableDimensions);
+        if (this._externalListeners && this.$root && this.$root.$off) {
+          this._externalListeners.forEach(({ evtName, handler }) => this.$root.$off(evtName, handler));
+          this._externalListeners = [];
+        }
+      });
+    }
+  },
   beforeDestroy() {
     window.removeEventListener('resize', this.calculateTableDimensions);
     if (this._externalListeners && this._externalListeners.length && this.$root && this.$root.$off) {
@@ -796,6 +805,8 @@ export default {
     },
 
     async reloadData() {
+      console.log('GenericDataViewer.reloadData called', { page: this.page, element: this.element, filter: this.filter });
+
       if (!this.tableConfig.cliClassName || !this.tableConfig.restModuleName || !this.tableConfig.dataCollectMethod) {
         console.warn('Missing required config fields:', this.tableConfig);
         this.items = [];
@@ -813,6 +824,9 @@ export default {
           (this.tableConfig.columns || []).forEach(col => { if (!(col.colName in item)) item[col.colName] = ''; });
           return item;
         }) : [];
+        this.selectedRowId = null;
+        this.selectedCell = null;
+        this.showEditModal = false;
       }
       catch (err) {
         console.error('Failed loading data', { url, params: queryParms, status: err && err.response && err.response.status, message: err && err.message });

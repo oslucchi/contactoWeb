@@ -10,7 +10,7 @@
                         page="dashboard" 
                         element="Company" 
                         :user="userId"
-                        :filter="{ searchFor: '' }" 
+                        :filter="companySearchFilter"
                         :featuresEnabled="[false, false, false, true, true]"
                         :tableHeight="companiesHeight" 
                         :containerWidth="mainAreaWidth" 
@@ -74,7 +74,7 @@
              :style="sidebarWidth !== null ? { width: sidebarWidth + 'px' } : {}">
             <section ref="reportsSection" 
                      class="dashboard-block reports-block"
-                     :style="{ width: sidebarWidth + 'px', padding: '8px' }">
+                     :style="{ width: sidebarWidth + 'px', padding: '8px', height: '35%' }">
                 <GenericDataViewer 
                     ref="reportsViewer" 
                     page="dashboard" 
@@ -89,12 +89,16 @@
             <section ref="reportDetails" 
                      class="dashboard-block reports-block"
                      :style="{ width: sidebarWidth + 'px', padding: '8px' }">
-                <div v-if="selectedReport">
+                <div v-if="selectedReport" style="width: 100%; height: 100%;">
                     <h3 style="color: rgb(114, 173, 69);">Details</h3>
                     <div v-if="selectedEvent" style="width: 100%; height: 100%;">
-                        <p><strong>Date:</strong> {{ selectedEvent.date || 'N/A' }}</p>
+                        <p><strong>Date:</strong> {{ formatDate(selectedEvent.date) || 'N/A' }}</p>
                         <span style="">
-                            <input style="width: 100%; min-height: 100%;" v-model="selectedReport.report" />
+                            <textarea
+                                v-model="selectedReport.report"
+                                style="font-size:1.2rem; width:100%; height:100%; box-sizing:border-box; overflow:auto; resize:none;"
+                                @blur="onSelectedReportBlur"
+                            ></textarea>
                         </span>
                     </div>
                     <div v-else>
@@ -103,30 +107,22 @@
                 </div>
             </section>
         </div>
-
-
-      <!-- Report modal: simple full-editor for report field -->
-      <div v-if="showReportModal" class="modal-overlay" @click.self="closeReportModal" role="dialog" aria-modal="true">
-        <div class="modal-content">
-          <button class="modal-close" @click="closeReportModal">X</button>
-          <h3>Edit report</h3>
-          <textarea v-model="reportDraft" rows="16" style="width:100%; box-sizing:border-box; font-family: monospace;"></textarea>
-          <div style="margin-top:12px; text-align:right;">
-            <button @click="saveReport">Save</button>
-            <button @click="closeReportModal" style="margin-left:8px;">Cancel</button>
-          </div>
-        </div>
-      </div>
     </div>
 </template>
 
 <script>
 import GenericDataViewer from '@/views/Utils/GenericDataViewer.vue';
+import axios from 'axios';
+import { API_BASE_URL } from '@/config/apiConfig';
+import dayjs from 'dayjs';
 
 export default {
     components: { GenericDataViewer },
     data() {
         return {
+            selectedReportOriginalContent: '',
+            companySearchFilter: { searchFor: '' },
+
             userId: 1,
             selectedCompany: null,
             selectedBranch: null,
@@ -188,6 +184,18 @@ export default {
         }
     },
     methods: {
+          formatDate(value, format) {
+            if (!value && value !== 0) return 'N/A';
+            try {
+            // dayjs parses ISO / timezone forms; format as "YY/MM/DD HH:mm"
+                const d = dayjs(value);
+                if (!d.isValid()) return 'N/A';
+                    return d.format(format || 'YY/MM/DD HH:mm');
+            } catch (e) {
+               return 'N/A';
+            }
+        },
+
         handleResize() {
             // compute mainAreaWidth from the dashboard container width minus sidebar
             const containerWidth = (this.$el && this.$el.getBoundingClientRect) ? this.$el.getBoundingClientRect().width : window.innerWidth;
@@ -271,24 +279,59 @@ export default {
 
         onReportSelected(payload) {
             console.log('report selected', payload);
-            const id = payload && payload.id ? payload.id : null;
-            this.selectedReport = payload && payload.item ? payload.item : null;
-/*
             const item = payload && payload.item ? payload.item : null;
-            const rowIdx = payload && (payload.rowIdx !== undefined) ? payload.rowIdx : null;
+            this.selectedReport = item ? Object.assign({}, item) : null;
+            // store initial content so we can detect changes on blur
+            this.selectedReportOriginalContent = this.selectedReport && this.selectedReport.report != null
+              ? String(this.selectedReport.report)
+              : '';
+        },
 
-            // Prefer viewer-local modal (GenericDataViewer.openReportModal implemented)
-            if (this.$refs && this.$refs.reportsViewer && typeof this.$refs.reportsViewer.openReportModal === 'function') {
-                try {
-                this.$refs.reportsViewer.openReportModal(item, rowIdx);
-                return;
-                } catch (e) {
-                console.warn('reportsViewer.openReportModal failed', e);
+        async saveSelectedReport() {
+            try {
+                const body = JSON.parse(JSON.stringify(this.selectedReport));
+
+                // normalize date: ensure ISO-8601 UTC (backend usually accepts this)
+                if (body.date) {
+                    const d = new Date(body.date);
+                    // fallback: if invalid date, leave as-is
+                    if (!isNaN(d.getTime())) body.date = d.toISOString(); // e.g. "2005-01-11T16:34:00.000Z"
+                }
+
+                await axios.post(`${API_BASE_URL}/reports/update`, 
+                                 { report: body });
+                console.log('report changes saved');
+                // update the original content snapshot after successful save
+                this.selectedReportOriginalContent = this.selectedReport.report == null ? '' : String(this.selectedReport.report);
+                // refresh reports list lightly so saved changes are visible
+                this.$nextTick(() => {
+                    if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.reloadData === 'function') {
+                        this.$refs.reportsViewer.reloadData();
+                    } else if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.calculateTableDimensions === 'function') {
+                        this.$refs.reportsViewer.calculateTableDimensions();
+                    }
+                });
+            } catch (e) {
+                console.warn('saveSelectedReport failed', e);
+            }
+        },
+
+        onSelectedReportBlur() {
+            const current = this.selectedReport && this.selectedReport.report != null ? String(this.selectedReport.report) : '';
+            const original = this.selectedReportOriginalContent || '';
+            if (current !== original) {
+                // ask confirmation
+                const yes = window.confirm('The report was changed. Would you like to save the changes?');
+                if (yes) {
+                    console.log('saving report changes');
+                    this.saveSelectedReport();
+                } else {
+                    // revert to original content
+                    if (this.selectedReport) this.selectedReport.report = original;
                 }
             }
-            this.openDashboardReportModal(item, rowIdx);
-*/
         },
+
 
         // open dashboard modal and populate draft
         openDashboardReportModal(item, rowIdx) {
@@ -296,39 +339,6 @@ export default {
             this.reportModalRowIdx = rowIdx;
             this.reportDraft = (item && item.report !== undefined) ? String(item.report) : '';
             this.showReportModal = true;
-        },
-
-        closeReportModal() {
-            this.showReportModal = false;
-            this.reportDraft = '';
-            this.reportModalItem = null;
-            this.reportModalRowIdx = null;
-            },
-
-            // Save: prefer reportsViewer.saveItem, otherwise emit event for parent to handle persistence
-            async saveReportFromDashboard() {
-            if (!this.reportModalItem) return this.closeReportModal();
-            // update local item copy
-            this.reportModalItem.report = this.reportDraft;
-            try {
-                if (this.$refs && this.$refs.reportsViewer && typeof this.$refs.reportsViewer.saveItem === 'function') {
-                await this.$refs.reportsViewer.saveItem(this.reportModalItem);
-                } else {
-                // emit upward so app-level code can persist it
-                this.$emit('reportSave', { item: this.reportModalItem, rowIdx: this.reportModalRowIdx });
-                }
-            } catch (e) {
-                console.warn('saveReportFromDashboard failed', e);
-            }
-            this.closeReportModal();
-            // refresh the reports viewer to reflect changes
-            this.$nextTick(() => {
-                if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.reloadData === 'function') {
-                this.$refs.reportsViewer.reloadData();
-                } else if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.calculateTableDimensions === 'function') {
-                this.$refs.reportsViewer.calculateTableDimensions();
-                }
-            });
         },
 
         // pointer drag
@@ -552,7 +562,14 @@ export default {
     flex-direction: column;
     /* min-height: 200px; */
 }
-
+.reports-block textarea {
+  height: 100% !important;
+  min-height: 0;
+  resize: none !important;
+  box-sizing: border-box;
+  overflow: auto;
+  display: block;
+}
 .divider {
     height: 8px;
     cursor: row-resize;
