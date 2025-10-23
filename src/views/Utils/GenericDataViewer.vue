@@ -77,20 +77,27 @@
                               String(item[col.renderLayout]).trim() !== '' && 
                               hasValue(item, col)"
                         class="cell-content"
-                        v-ellipsis="() => getCellTitle(item, col)" 
-                        style="flex: 1 1 auto; min-width: 0;"  
+                        v-ellipsis="() => getCellTitle(item, col)"
+                        style="flex: 1 1 auto; min-width: 0;"
                     >
                       <div v-if="selectedCell === col.colName && featuresEnabled[4]">
                         <input class="table-input" v-model="item[col.colName]" style="width: 100%;" />
                       </div>
-                      <div v-else v-html="renderCellHtml(item, col)"></div>
+                      <div 
+                          v-else 
+                          :style="mergeCellStyle(item, col)"
+                          v-html="renderCellHtml(item, col)">
+                      </div>
                     </div>
                     <div 
                         v-else 
                         class="cell-content" 
                         v-ellipsis="() => getCellTitle(item, col)" 
-                        style="flex: 1 1 auto; min-width: 0;">
-                      <span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box;">{{ item[col.colName] }}</span>
+                        style="flex: 1 1 auto; min-width: 0;"
+                    >
+                      <span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box;">
+                        {{ item[col.colName] }}
+                      </span>
                     </div>
                   </div>
                 </td>
@@ -119,6 +126,9 @@ import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import ColConfigHeader from '@/types/ColConfigHeader';
 import DOMPurify from 'dompurify';
+
+const _ellipsisThunks = new WeakMap(); // store thunks for elements
+let _ellipsisScheduled = false;        // debounce flag
 
 function getClassByName(name) {
   if (!name) {
@@ -149,12 +159,20 @@ function applyEllipsis(el) {
   const scrollW = el.scrollWidth;
   const isOverflowing = scrollW > clientW;
 
+  // toggle marker class so CSS can show the "..." only for overflowing cells
+  if (isOverflowing) {
+    el.classList.add('is-cropped');
+  } else {
+    el.classList.remove('is-cropped');
+  }
+
   if (isOverflowing) {
     // compute title lazily only when needed (call thunk or use provided string)
     let titleText = '';
     try {
-      if (typeof altOrGetter === 'function') titleText = String(altOrGetter() || '').trim();
-      else titleText = (typeof altOrGetter === 'string') ? altOrGetter.trim() : (el.textContent || '').trim();
+      const thunk = (typeof altOrGetter !== 'undefined') ? altOrGetter : _ellipsisThunks.get(el);
+      if (typeof thunk === 'function') titleText = String(thunk() || '').trim();
+      else titleText = (typeof thunk === 'string') ? thunk.trim() : (el.textContent || '').trim();
     } catch (e) {
       titleText = (el.textContent || '').trim();
     }
@@ -163,6 +181,7 @@ function applyEllipsis(el) {
   } else {
     el.removeAttribute('title');
   }
+
 }
 
 export default {
@@ -307,20 +326,31 @@ export default {
     // Lightweight directive: mark elements and store thunk; actual work is done by refreshEllipsis()
     ellipsis: {
       inserted(el, binding) {
+        if (_ellipsisThunks === undefined) return;
         // mark element for later processing
         el.setAttribute('data-ellipsis', '1');
         if (binding && binding.value) {
-          if (typeof binding.value === 'function') _ellipsisThunks.set(el, binding.value);
-          else _ellipsisThunks.set(el, () => binding.value);
-        } else {
+          if (typeof binding.value === 'function') {
+             _ellipsisThunks.set(el, binding.value);
+          }
+          else {
+            _ellipsisThunks.set(el, () => binding.value);
+          }
+        } 
+        else {
           _ellipsisThunks.set(el, null);
         }
       },
       componentUpdated(el, binding) {
+        if (_ellipsisThunks === undefined) return;
         // update stored thunk if it changes; keep DOM work out of render path
         if (binding && binding.value) {
-          if (typeof binding.value === 'function') _ellipsisThunks.set(el, binding.value);
-          else _ellipsisThunks.set(el, () => binding.value);
+          if (typeof binding.value === 'function') {
+            _ellipsisThunks.set(el, binding.value);
+          }
+          else {
+            _ellipsisThunks.set(el, () => binding.value);
+          }
         } else {
           _ellipsisThunks.set(el, null);
         }
@@ -333,7 +363,46 @@ export default {
   },
 
   methods: {
-      // schedule a single batched pass to compute ellipsis/title for marked cells
+    setRef(mainRef, rowIdx, colIdx) {
+      return `${mainRef}-${rowIdx}-${colIdx}`;
+    },
+
+    // parse a CSS string like "color:red;font-weight:bold" => { color: 'red', 'font-weight': 'bold' }
+    parseStyleString(cssText) {
+      if (!cssText || typeof cssText !== 'string') return {};
+      const out = {};
+      cssText.split(';').forEach(pair => {
+        const idx = pair.indexOf(':');
+        if (idx > -1) {
+          const k = pair.slice(0, idx).trim();
+          const v = pair.slice(idx + 1).trim();
+          if (k) out[k] = v;
+        }
+      });
+      return out;
+    },
+
+    // build the inline style object for a cell: base flex rules + optional per-cell css
+    mergeCellStyle(item, col) {
+      // base ensures the element remains the flex child and measurable for ellipsis
+      const base = { flex: '1 1 auto', 'min-width': '0' };
+      if (!col || !col.style) return base;
+      // obtain css text from item field or column static config
+      let cssText = '';
+      if (item && (col.style in item)) {
+        cssText = item[col.style] == null ? '' : String(item[col.style]);
+      }
+
+      if (!cssText) {
+        return '';
+      }
+      else
+      {
+        return cssText.endsWith(';') ? cssText : cssText + ';';
+      }
+    },
+
+    // schedule a single batched pass to compute ellipsis/title for marked cells
     refreshEllipsis() {
       if (_ellipsisScheduled) return;
       _ellipsisScheduled = true;
@@ -477,7 +546,6 @@ export default {
     renderCellHtml(item, col) {
       const raw = item && col && (col.colName in item) ? item[col.colName] : '';
       if (!col || !col.renderLayout) return DOMPurify.sanitize(this.escapeHtml(raw == null ? '' : String(raw)));
-
       const layoutStr = String(col.renderLayout || '').trim();
       if (!layoutStr) return DOMPurify.sanitize(this.escapeHtml(raw == null ? '' : String(raw)));
 
@@ -495,17 +563,20 @@ export default {
             const s = this.escapeAttr(resolved);
             const alt = this.escapeAttr(iconName);
 
-            // parse optional size from format token, e.g. "ICON 24" or "ICON 24x24"
-            let w = 25, h = 25;
+            // parse optional size from format token, e.g. "ICON 24" 
+            let h = 20;
             if (fmt) {
               const m = fmt.match(/^(\d+)(?:x(\d+))?/);
-              if (m) { w = parseInt(m[1], 10) || w; h = parseInt(m[2], 10) || w; }
+              if (m) { h = parseInt(m[1], 10) || 20; }
             }
-            html = `<img src="${s}" alt="${alt}" class="cell-icon" style="width:${w}px;height:${h}px;max-width:${w}px;max-height:${h}px;object-fit:contain;"/>`;
+            html = `<img class="cell-icon" 
+                         style="width:100%;max-width:100%;height:${h}px;max-height:${h}px;object-fit:contain;"
+                         src="${s}" alt="${alt}"/>`;
           } 
           else {
             html = this.escapeHtml(raw == null ? '' : String(raw));
           }
+          console.debug('renderCellHtml: ICON resolved to', html.substring(0, 250));
           break;
         }
         case 'DATETIME':
@@ -719,16 +790,34 @@ export default {
     },
 
     async reloadData() {
-      if (!this.tableConfig) return;
+      if (!this.tableConfig.cliClassName || !this.tableConfig.restModuleName || !this.tableConfig.dataCollectMethod) {
+        console.warn('Missing required config fields:', this.tableConfig);
+        this.items = [];
+        return;
+      }
+
       const ClassType = (this.tableConfig && this.tableConfig.cliClassName) ? 
                               getClassByName(this.tableConfig.cliClassName) : Object;
-      const dataRes = await axios.get(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, { params: this.filter });
-      this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
-        const item = obj instanceof ClassType ? obj : new ClassType(obj);
-        (this.tableConfig.columns || []).forEach(col => { if (!(col.colName in item)) item[col.colName] = ''; });
-        return item;
-      }) : [];
-
+      const queryParms = { ...(this.filter || {}), rawData: true };
+      const url = `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`;
+      try {
+        const dataRes = await axios.get(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, { params: this.filter });
+        this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
+          const item = obj instanceof ClassType ? obj : new ClassType(obj);
+          (this.tableConfig.columns || []).forEach(col => { if (!(col.colName in item)) item[col.colName] = ''; });
+          return item;
+        }) : [];
+      }
+      catch (err) {
+        console.error('Failed loading data', { url, params: queryParms, status: err && err.response && err.response.status, message: err && err.message });
+        if (err && err.response && err.response.status === 404) {
+          // server says endpoint not found — treat as no-data and continue
+          this.items = [];
+        } else {
+          // other errors: also avoid throwing to keep UI usable
+          this.items = [];
+        }
+      }
       this.$nextTick(() => {
         this.calculateTableDimensions();
         if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();

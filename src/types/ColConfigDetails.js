@@ -8,7 +8,8 @@ export default class ColConfigDetails {
     width = 120,
     renderLayout = '',
     visible = true,
-    useForSort = false
+    useForSort = false,
+    style = ''
   } = {}) {
     this.idColConfigDetail = idColConfigDetail;
     this.idColConfigHeader = idColConfigHeader;
@@ -19,5 +20,6 @@ export default class ColConfigDetails {
     this.renderLayout = renderLayout;
     this.visible = visible;
     this.useForSort = useForSort;
+    this.style = style;
   }
 }
