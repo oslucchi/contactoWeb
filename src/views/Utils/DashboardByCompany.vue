@@ -14,6 +14,8 @@
                         :featuresEnabled="[false, false, false, true, true]"
                         :tableHeight="companiesHeight" 
                         :containerWidth="mainAreaWidth" 
+                        :columnsToSearch="['description', 'segment']"
+                        :searchPlaceholder="'Azienda/Segmento (3+ chars)'"
                         @rowSelected="onCompanySelected" />
                 </section>
                 <!-- Events -->
@@ -29,6 +31,8 @@
                         :featuresEnabled="[false, false, false, true, true]"
                         :tableHeight="eventsHeight" 
                         :containerWidth="eventAreaWidth" 
+                        :columnsToSearch="['title']"
+                        :searchPlaceholder="'Titolo (3+ chars)'"
                         @rowSelected="onEventSelected" />
                 </section>
             </div>
@@ -47,7 +51,7 @@
                     :filter="companyFilter" 
                     :featuresEnabled="[false, false, false, false, false]"
                     :tableHeight="branchesHeight" 
-                    :containerWidth="mainAreaWidth" 
+                    :containerWidth="mainAreaWidth"
                     @rowSelected="onBranchSelected" />
             </section>
 
@@ -63,9 +67,11 @@
                     element="Person" 
                     :user="userId"
                     :filter="companyFilter" 
-                    :featuresEnabled="[false, false, false, false, false]"
+                    :featuresEnabled="[false, false, false, true, false]"
                     :tableHeight="personsHeight" 
                     :containerWidth="mainAreaWidth" 
+                    :columnsToSearch="['familyName', 'firstName']"
+                    :searchPlaceholder="'Cognome/Nome (3+ chars)'"
                     @rowSelected="onPersonSelected" />
             </section>
         </div>

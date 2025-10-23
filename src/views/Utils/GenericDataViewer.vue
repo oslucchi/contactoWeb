@@ -3,6 +3,12 @@
     <div class="masterdata-content" ref="masterdataContent">
       <!-- Action bar -->
       <div class="action-icons">
+        <span v-if="featuresEnabled[3]">
+          <SearchByString
+            :placeholder="searchPlaceholder"
+            @input="onSearchInput"
+          />
+        </span>
         <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
           <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
         </button>
@@ -12,9 +18,11 @@
         <button v-if="featuresEnabled[2]" @click.stop="addNewItem">
           <img src="@/assets/icons/add.png" alt="Add" class="icon" />
         </button>
+<!--
         <button v-if="featuresEnabled[3]" @click.stop="searchElements">
           <img src="@/assets/icons/search.png" alt="Search" class="icon" />
         </button>
+-->
                 <!-- right aligned span -->
         <span v-if="showTitle" class="action-right">{{ showTitle }}</span>
       </div>
@@ -123,6 +131,8 @@
 </template>
 
 <script>
+
+import SearchByString  from '@/components/SearchByString.vue';
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import ColConfigHeader from '@/types/ColConfigHeader';
@@ -187,6 +197,7 @@ function applyEllipsis(el) {
 
 export default {
   name: 'GenericDataViewer',
+  components: { SearchByString },
   props: {
     page: { type: String, required: true },
     element: { type: String, required: true },
@@ -200,11 +211,15 @@ export default {
     capWidth: { type: Number, default: 0 },
     listenEvents: { type: Array, default: () => [] },
     emitOnSelect: { type: [String, Array], default: null },
+    columnsToSearch: { type: Array, default: () => null },
+    searchPlaceholder: { type: String, default: null }
+
   },
   emits: ['rowSelected'],
   data() {
     return {
       tableConfig: { table: this.element, columns: [] },
+      _itemsSource: [], // original unfiltered records
       items: [],
       selectedRowId: null,
       selectedCell: null,
@@ -327,6 +342,9 @@ export default {
         return item;
       }) : [];
 
+      // keep an immutable copy of the loaded dataset so we can filter locally
+      this._itemsSource = Array.isArray(this.items) ? this.items.slice() : [];
+
       this.$nextTick(() => {
         this.calculateTableDimensions();
         if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
@@ -379,6 +397,31 @@ export default {
   },
 
   methods: {
+    onSearchInput(value) {
+      const v = value == null ? '' : String(value).trim();
+      // if less than 3 chars, restore full dataset
+      if (v.length < 3) {
+        this.items = Array.isArray(this._itemsSource) ? this._itemsSource.slice() : (Array.isArray(this.items) ? this.items : []);
+        return;
+      }
+
+      const term = v.toLowerCase();
+      const cols = this.visibleColumns || [];
+
+      // filter _itemsSource: include item if any visible column contains the substring (OR)
+      this.items = (this._itemsSource || []).filter(item => {
+        for (let i = 0; i < cols.length; i++) {
+          const col = cols[i];
+          if (!col || !col.colName || !this.columnsToSearch.includes(col.colName)) continue;
+          const raw = item ? item[col.colName] : null;
+          if (raw == null) continue;
+          const s = String(raw).toLowerCase();
+          if (s.indexOf(term) !== -1) return true;
+        }
+        return false;
+      });
+    },
+
     setRef(mainRef, rowIdx, colIdx) {
       return `${mainRef}-${rowIdx}-${colIdx}`;
     },
@@ -824,6 +867,9 @@ export default {
           (this.tableConfig.columns || []).forEach(col => { if (!(col.colName in item)) item[col.colName] = ''; });
           return item;
         }) : [];
+        // refresh local source copy for future filtering
+        this._itemsSource = Array.isArray(this.items) ? this.items.slice() : [];
+
         this.selectedRowId = null;
         this.selectedCell = null;
         this.showEditModal = false;
