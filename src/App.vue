@@ -66,6 +66,7 @@ html, body, #app {
   -moz-osx-font-smoothing: grayscale;
   display: flex;
   flex-direction: column;
+  --page-header-height: 100px; /* expose header height so routed views can use the variable reliably */
 }
 
 .page-header {

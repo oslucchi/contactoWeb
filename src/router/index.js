@@ -15,7 +15,8 @@ import EmployeesList from '../views/MasterDataHandlers/Employees/EmployeesList.v
 import AgendaCalendar from '@/views/Agenda/AgendaCalendar.vue';
 import ProjectsList from '@/views/MasterDataHandlers/Projects/ProjectsList.vue';
 import ProjectsForm from '@/views/MasterDataHandlers/Projects/ProjectsForm.vue';
-import DashboardByCompany from '../views/Utils/DashboardByCompany.vue';
+import DashboardByCompany from '../views/Dashboards/DashboardByCompany.vue';
+import DashboardMasterData from '../views/Dashboards/DashboardMasterData.vue';
 
 Vue.use(VueRouter);
 
@@ -46,6 +47,7 @@ const routes = [
   { path: '/projects/:id', component: ProjectsForm, props: true, meta: { title: 'Modifica progetto' } },
 
   { path: '/dashboardByCompany', component: DashboardByCompany, meta: { title: 'Vista per azienda' } },
+  { path: '/masterDataDashboard', component: DashboardMasterData, meta: { title: 'Gestione Anagrafiche' } },
 
   { path: '/agenda/schedule', component: AgendaCalendar, props: true, meta: { title: 'Agenda' } },
 ];

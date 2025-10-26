@@ -211,8 +211,8 @@ export default {
     capWidth: { type: Number, default: 0 },
     listenEvents: { type: Array, default: () => [] },
     emitOnSelect: { type: [String, Array], default: null },
-    columnsToSearch: { type: Array, default: () => null },
-    searchPlaceholder: { type: String, default: null }
+    // columnsToSearch: { type: Array, default: () => null },
+    // searchPlaceholder: { type: String, default: null }
 
   },
   emits: ['rowSelected'],
@@ -221,6 +221,10 @@ export default {
       tableConfig: { table: this.element, columns: [] },
       _itemsSource: [], // original unfiltered records
       items: [],
+
+      columnsToSearch: [],
+      searchPlaceholder: '',
+
       selectedRowId: null,
       selectedCell: null,
       showEditModal: false,
@@ -283,13 +287,21 @@ export default {
       const cap = Math.min(provided, effective);
       return { width: '100%', maxWidth: (isFinite(cap) ? cap + 'px' : 'none') };
     },
+
     anyActionEnabled() { return this.featuresEnabled.some(f => f); },
+
     bodyHeight() { return this.localBodyHeight || (this.tableHeight - 28); },
+
     visibleColumns() {
-      var cols = (this.tableConfig && Array.isArray(this.tableConfig.columns)) ? this.tableConfig.columns : [];
-      return cols.filter(col => (col.visible === 1 || col.visible === '1' || col.visible === true || col.visible === 'Y' || col.visible === 'y'))
+      var cols = (this.tableConfig && Array.isArray(this.tableConfig.columns)) ? 
+                      this.tableConfig.columns : [];
+      let visibleColumns =  cols.filter(col => (col.visible === 1 || col.visible === '1' || col.visible === true || col.visible === 'Y' || col.visible === 'y'))
         .sort((a, b) => (a.position || 0) - (b.position || 0));
+      
+      console.log("Visible Columns:", visibleColumns);
+      return visibleColumns;
     },
+
     sortedItems() {
       if (!this.sortColumn || !this.sortDirection) return this.items;
       let sorted = [...this.items];
@@ -334,17 +346,49 @@ export default {
 
       const ClassType = getClassByName(this.tableConfig.cliClassName);
       const queryParms = { ...(this.filter || {}), rawData: true };
-      const dataRes = await axios.get(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, { params: queryParms });
+      const dataRes = await axios.get(
+                        `${API_BASE_URL}/${this.tableConfig.restModuleName}/${this.tableConfig.dataCollectMethod}`, 
+                        { params: queryParms }
+                      );
 
       this.items = Array.isArray(dataRes.data) ? dataRes.data.map(obj => {
         const item = obj instanceof ClassType ? obj : new ClassType(obj);
-        (this.tableConfig.columns || []).forEach(col => { if (!(col.colName in item)) item[col.colName] = ''; });
+        (this.tableConfig.columns || []).forEach(col => {
+          if (!(col.colName in item))
+          {
+            item[col.colName] = '';
+          }
+        });
         return item;
       }) : [];
 
       // keep an immutable copy of the loaded dataset so we can filter locally
       this._itemsSource = Array.isArray(this.items) ? this.items.slice() : [];
+      this.searchPlaceholder = '';
+      this.columnsToSearch = [];
+      const cols = Array.isArray(this.tableConfig.columns) ? this.tableConfig.columns : [];
+      if (!cols.length) {
+        console.warn('GenericDataViewer: no columns array found on tableConfig', this.tableConfig);
+      }
 
+      let sep = "";
+      cols.forEach( col => {
+          const useInSearch = col && col.useInSearch;
+          const name = col && col.showName;
+          const colName = col && col.colName;
+          console.log(col);
+          if (useInSearch && name && colName) {
+            this.searchPlaceholder += sep + String(name).substring(0, 5);
+            this.columnsToSearch.push(col.colName);
+            sep = ', ';
+          }
+        }
+      )
+      console.log("Search Placeholder:", this.searchPlaceholder);
+      console.log("Columns to Search:", this.columnsToSearch);
+      console.log("Table Config:", this.tableConfig);
+
+      console.log()
       this.$nextTick(() => {
         this.calculateTableDimensions();
         if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
@@ -687,7 +731,9 @@ export default {
       this.effectiveContainerWidth = Math.max(0, minOfTwo - preserve);
 
       // total width defined by DB column widths (do NOT force expand to parent)
-      var totalColWidth = this.visibleColumns.reduce(function (sum, col) { return sum + (Number(col.width) || 120); }, 0);
+      var totalColWidth = this.visibleColumns.reduce(function (sum, col) { 
+                                  return sum + (Number(col.width) || 120); }, 0
+                                );
 
       // ensure a sane minimum but prefer totalColWidth so columns keep DB sizes
       this.localTableWidth = Math.max((totalColWidth || 0), 50);

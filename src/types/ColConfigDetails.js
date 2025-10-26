@@ -9,7 +9,8 @@ export default class ColConfigDetails {
     renderLayout = '',
     visible = true,
     useForSort = false,
-    style = ''
+    style = '',
+    useInSearch = false
   } = {}) {
     this.idColConfigDetail = idColConfigDetail;
     this.idColConfigHeader = idColConfigHeader;
@@ -21,5 +22,6 @@ export default class ColConfigDetails {
     this.visible = visible;
     this.useForSort = useForSort;
     this.style = style;
+    this.useInSearch = useInSearch;
   }
 }
