@@ -1,16 +1,22 @@
 <template>
-  <div class="search-by-string" role="search">
-    <span class="icon" aria-hidden="true" v-html="lensSvg"></span>
-    <input
-      type="text"
-      :placeholder="placeholder"
-      :value="value"
-      @input="onInputEvent"
-      @keyup="$emit('keyup', $event)"
-      class="search-input"
-      autocomplete="off"
-      spellcheck="false"
-    />
+  <div>
+    <button>
+      <img src="@/assets/icons/search.png" alt="Search" class="icon" />
+    </button>
+    <!-- <img src="@/assets/icons/search.png" alt="Search" class="icon" /> -->
+    <div class="search-by-string" role="search">
+      <!-- <span class="icon" aria-hidden="true" v-html="lensSvg"></span> -->
+      <input
+        type="text"
+        :placeholder="placeholder"
+        :value="value"
+        @input="onInputEvent"
+        @keyup="$emit('keyup', $event)"
+        class="search-input"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
   </div>
 </template>
 
@@ -26,7 +32,7 @@ export default {
   data() {
     return {
       // simple inline svg for search lens
-      lensSvg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      // lensSvg: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
     };
   },
   methods: {
@@ -63,6 +69,13 @@ export default {
   height: 18px;
   flex: 0 0 18px;
 }
+
+.icon {
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+}
+
 .search-input {
   border: none;
   outline: none;

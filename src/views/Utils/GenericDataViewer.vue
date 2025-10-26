@@ -282,10 +282,11 @@ export default {
   computed: {
     rootContainerStyle() {
       // Use fluid width but cap it so the viewer never exceeds its parent/cap.
-      const provided = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? this.containerWidth : Infinity;
-      const effective = (typeof this.effectiveContainerWidth === 'number' && this.effectiveContainerWidth > 0) ? this.effectiveContainerWidth : Infinity;
-      const cap = Math.min(provided, effective);
-      return { width: '100%', maxWidth: (isFinite(cap) ? cap + 'px' : 'none') };
+      // const provided = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? this.containerWidth : Infinity;
+      // const effective = (typeof this.effectiveContainerWidth === 'number' && this.effectiveContainerWidth > 0) ? this.effectiveContainerWidth : Infinity;
+      // const cap = Math.min(provided, effective);
+      // return { width: '100%', maxWidth: (isFinite(cap) ? cap + 'px' : 'none') };
+      return { width: '100%' };
     },
 
     anyActionEnabled() { return this.featuresEnabled.some(f => f); },
@@ -710,25 +711,38 @@ export default {
     },
 
     calculateTableDimensions() {
-      var parentWidth = (this.$el && this.$el.parentElement && this.$el.parentElement.offsetWidth) || 0;
-      var screenW = window.innerWidth || document.documentElement.clientWidth || parentWidth || 0;
-      var specified;
-      if (this.containerWidth && typeof this.containerWidth === 'number' && this.containerWidth > 0) {
-        specified = this.containerWidth;
-      } else {
-        specified = (typeof this.capWidth === 'number' && this.capWidth > 0) ? this.capWidth : (parentWidth || screenW);
-      }
+      // var parentWidth = (this.$el && this.$el.parentElement && this.$el.parentElement.offsetWidth) || 0;
+      // var screenW = window.innerWidth || document.documentElement.clientWidth || parentWidth || 0;
+      // var specified;
+      // if (this.containerWidth && typeof this.containerWidth === 'number' && this.containerWidth > 0) {
+      //   specified = this.containerWidth;
+      // } else {
+      //   specified = (typeof this.capWidth === 'number' && this.capWidth > 0) ? this.capWidth : (parentWidth || screenW);
+      // }
 
-      var headerH = 28;
+      // Measure parent width and use it only for internal sizing calculations.
+      const parentEl = this.$el && this.$el.parentElement ? this.$el.parentElement : null;
+      const parentWidth = parentEl ? parentEl.clientWidth || parentEl.offsetWidth : (window.innerWidth || document.documentElement.clientWidth || 0);
+      // prefer explicit containerWidth prop when provided, otherwise use measured parent width
+      const specified = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? this.containerWidth : parentWidth;
+
+      // var headerH = 28;
+      // if (this.$refs && this.$refs.headerRef && this.$refs.headerRef.offsetHeight) headerH = this.$refs.headerRef.offsetHeight;
+      let headerH = 28;
       if (this.$refs && this.$refs.headerRef && this.$refs.headerRef.offsetHeight) headerH = this.$refs.headerRef.offsetHeight;
+
       var containerPadV = 2 + 0;
       var scrollbarReserve = 4;
 
       this.localBodyHeight = Math.max(0, this.tableHeight - headerH - containerPadV - scrollbarReserve);
 
-      var preserve = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? 0 : Math.max(0, this.preserveRightSpace || 0);
-      var minOfTwo = Math.min(specified, screenW);
-      this.effectiveContainerWidth = Math.max(0, minOfTwo - preserve);
+      // var preserve = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? 0 : Math.max(0, this.preserveRightSpace || 0);
+      // var minOfTwo = Math.min(specified, screenW);
+      // this.effectiveContainerWidth = Math.max(0, minOfTwo - preserve);
+      // preserve right gutter only when viewer is not constrained by an explicit containerWidth prop
+      const preserve = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? 0 : Math.max(0, this.preserveRightSpace || 0);
+      // effectiveContainerWidth is for internal calculations only (not applied to root styling)
+      this.effectiveContainerWidth = Math.max(0, Math.round(Math.max(0, specified - preserve)));
 
       // total width defined by DB column widths (do NOT force expand to parent)
       var totalColWidth = this.visibleColumns.reduce(function (sum, col) { 
@@ -754,8 +768,7 @@ export default {
       });
     },
 
-
-      // add three-state column sorting: asc -> desc -> natural (off)
+    // add three-state column sorting: asc -> desc -> natural (off)
     handleSort(colName) {
       if (!colName) return;
       if (this.sortColumn !== colName) {
@@ -847,6 +860,7 @@ export default {
       const onMove = (e) => {
         const delta = e.pageX - startX;
         let next = Math.max(minW, Math.min(maxW, startWidth + delta));
+        // this.$refs.tbodyScroll.width;
         col.width = Math.round(next);
         if (this.$refs && this.$refs.tbodyScroll) {
           const sb = this.$refs.tbodyScroll.offsetWidth - this.$refs.tbodyScroll.clientWidth;
@@ -1106,6 +1120,7 @@ export default {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  align-items: center;
 }
 
 /* Header stays visible; will follow horizontally via syncHeaderScroll */
@@ -1115,6 +1130,8 @@ export default {
   overflow: hidden;
   min-width: 0;
   will-change: transform;
+  display: flex;
+  justify-content: center;
 }
 
 /* tbody is the scroll region for both axes */
@@ -1125,6 +1142,9 @@ export default {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable both-edges;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 /* Table sizing: fill container when narrow, grow when wide (no shrink) */

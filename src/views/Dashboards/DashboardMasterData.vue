@@ -98,8 +98,9 @@ export default {
   display: block;
   align-self: center;
   /* optional: constrain size so centering is visible */
-  width: auto;
+  width: 100%;
   max-width: 100%;
+  padding: 10px;
 }
 
 .dashboard-layout {
@@ -110,15 +111,6 @@ export default {
     /* center the content horizontally and vertically */
     align-items: center;
     justify-content: center;
-}
-
-/* ensure the inner view doesn't force full stretch */
-.table-data-view {
-  display: block;
-  align-self: center;
-  /* optional: constrain size so centering is visible */
-  width: auto;
-  max-width: 100%;
 }
 
 .dashboard-block.companies-block {
