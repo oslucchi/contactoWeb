@@ -58,6 +58,32 @@ The i18n instance is configured in `src/locales/index.js` with:
 - Various form components: Updated to use translation keys
 - Router: Updated to use titleKey for dynamic page titles
 
+## Axios Language Headers
+
+### Automatic Header Injection
+All HTTP requests made through axios automatically include language headers:
+- `Accept-Language`: Formatted locale (e.g., "it-IT", "en-EN")
+- `Language`: Custom header with the same formatted locale
+
+### Implementation Details
+- **Interceptor Setup**: Global axios interceptor adds headers to every request
+- **Dynamic Updates**: Headers update automatically when user changes language
+- **Locale Mapping**: Maps Vue i18n locale codes to full locale format:
+  - `it` → `it-IT`
+  - `en` → `en-EN`
+
+### Server Integration
+The server can now:
+- Read the `Accept-Language` or `Language` header from requests
+- Return localized data based on the client's selected language
+- Implement language-specific business logic
+
+### Testing
+You can verify that headers are being sent correctly by:
+- Using browser DevTools Network tab to inspect HTTP request headers
+- Checking server logs to see incoming `Accept-Language` and `Language` headers
+- Using browser console to monitor axios interceptor behavior
+
 ## Future Enhancements
 - Add more languages by creating new JSON files (e.g., fr.json, de.json)
 - Implement date/number formatting based on locale

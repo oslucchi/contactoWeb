@@ -8,6 +8,8 @@
 </template>
 
 <script>
+import { updateAxiosLanguage } from '@/config/axiosConfig'
+
 export default {
   name: 'LanguageSelector',
   computed: {
@@ -24,6 +26,9 @@ export default {
     changeLanguage() {
       // Store the selected language in localStorage for persistence
       localStorage.setItem('selectedLanguage', this.currentLanguage)
+      
+      // Update axios headers with new language
+      updateAxiosLanguage(this.currentLanguage)
       
       // Emit event to parent component if needed
       this.$emit('language-changed', this.currentLanguage)
@@ -54,6 +59,9 @@ export default {
     if (savedLanguage && ['it', 'en'].includes(savedLanguage)) {
       this.$i18n.locale = savedLanguage
     }
+    
+    // Set initial axios headers with current language
+    updateAxiosLanguage(this.$i18n.locale)
     
     // Update page meta information
     this.updatePageMeta()
