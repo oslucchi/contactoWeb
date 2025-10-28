@@ -1,20 +1,20 @@
 <template>
   <div>
-    <h2>{{ isEdit ? 'Edit' : 'Add' }} Person</h2>
+    <h2>{{ isEdit ? $t('navigation.editPerson') : $t('navigation.newPerson') }}</h2>
     <form @submit.prevent="savePerson">
-      <input v-model.number="person.idCustomer" placeholder="Customer ID" required />
-      <input v-model="person.familyName" placeholder="Family Name" />
-      <input v-model="person.firstName" placeholder="First Name" />
-      <input v-model="person.role" placeholder="Role" />
-      <input v-model="person.mobile" placeholder="Mobile" />
-      <input v-model="person.office" placeholder="Office" />
-      <input v-model="person.email" placeholder="Email" />
-      <input v-model="person.street" placeholder="Street" />
-      <input v-model="person.zip" placeholder="ZIP" />
-      <input v-model="person.city" placeholder="City" />
-      <input v-model="person.region" placeholder="Region" />
-      <input v-model="person.country" placeholder="Country" />
-      <button type="submit">Save</button>
+      <input v-model.number="person.idCustomer" :placeholder="$t('forms.placeholders.customerId')" required />
+      <input v-model="person.familyName" :placeholder="$t('forms.placeholders.familyName')" />
+      <input v-model="person.firstName" :placeholder="$t('forms.placeholders.firstName')" />
+      <input v-model="person.role" :placeholder="$t('forms.placeholders.role')" />
+      <input v-model="person.mobile" :placeholder="$t('forms.placeholders.mobile')" />
+      <input v-model="person.office" :placeholder="$t('forms.placeholders.office')" />
+      <input v-model="person.email" :placeholder="$t('forms.placeholders.email')" />
+      <input v-model="person.street" :placeholder="$t('forms.placeholders.street')" />
+      <input v-model="person.zip" :placeholder="$t('forms.placeholders.zip')" />
+      <input v-model="person.city" :placeholder="$t('forms.placeholders.city')" />
+      <input v-model="person.region" :placeholder="$t('forms.placeholders.region')" />
+      <input v-model="person.country" :placeholder="$t('forms.placeholders.country')" />
+      <button type="submit">{{ $t('common.save') }}</button>
     </form>
   </div>
 </template>

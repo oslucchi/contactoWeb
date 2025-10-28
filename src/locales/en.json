@@ -1,0 +1,124 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "add": "Add",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "close": "Close",
+    "search": "Search",
+    "yes": "Yes",
+    "no": "No",
+    "remove": "Remove",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "actions": "Actions"
+  },
+  "header": {
+    "tagline": "action manager at your fingertips",
+    "menu": "Menu"
+  },
+  "navigation": {
+    "home": "Company View",
+    "persons": "Contacts Registry",
+    "newPerson": "New Contact",
+    "editPerson": "Edit Contact",
+    "companies": "Companies Registry",
+    "newCompany": "New Company",
+    "editCompany": "Edit Company",
+    "projects": "Projects",
+    "newProject": "New Project",
+    "editProject": "Edit Project",
+    "branches": "Branches",
+    "newBranch": "New Branch",
+    "editBranch": "Edit Branch",
+    "employees": "Employees",
+    "newEmployee": "New Employee",
+    "editEmployee": "Edit Employee",
+    "organization": "Organization",
+    "newOrganization": "New Organization",
+    "editOrganization": "Edit Organization",
+    "agenda": "Agenda",
+    "masterData": "Master Data Management"
+  },
+  "forms": {
+    "placeholders": {
+      "companyId": "Company ID",
+      "segmentId": "Segment ID",
+      "description": "Description",
+      "status": "Status",
+      "type": "Type",
+      "customerId": "Customer ID",
+      "familyName": "Last Name",
+      "firstName": "First Name",
+      "role": "Role",
+      "mobile": "Mobile",
+      "office": "Office",
+      "email": "Email",
+      "street": "Street",
+      "zip": "ZIP",
+      "city": "City",
+      "region": "Region",
+      "country": "Country",
+      "reason": "Reason",
+      "summary": "Summary",
+      "text": "Text",
+      "addParticipant": "Add participant...",
+      "searchPlaceholder": "Search..."
+    },
+    "labels": {
+      "participants": "Participants",
+      "duration": "Duration",
+      "company": "Company",
+      "category": "Category",
+      "customer": "Customer",
+      "address": "Address",
+      "none": "None"
+    }
+  },
+  "events": {
+    "cancel": "Cancel Event",
+    "cancelReason": "Cancellation reason:",
+    "details": "Event Details",
+    "edit": "Edit Event",
+    "participants": "Participants",
+    "addSelected": "Add Selected",
+    "confirmRemove": "Remove {name} from participants?",
+    "duration": "min"
+  },
+  "reports": {
+    "title": "Reports",
+    "addReport": "Add Report",
+    "editReport": "Edit Report",
+    "participants": "Participants"
+  },
+  "projects": {
+    "title": "Projects",
+    "headers": {
+      "customer": "Customer",
+      "description": "Description",
+      "address": "Address"
+    }
+  },
+  "companies": {
+    "title": "Companies"
+  },
+  "persons": {
+    "title": "Contacts",
+    "addEmployee": "Add Employee"
+  },
+  "dashboard": {
+    "byCompany": "Company Dashboard",
+    "masterData": "Master Data Dashboard"
+  },
+  "messages": {
+    "noResults": "No results found",
+    "confirmDelete": "Are you sure you want to delete this item?",
+    "saveSuccess": "Saved successfully",
+    "saveError": "Error while saving",
+    "deleteSuccess": "Deleted successfully",
+    "deleteError": "Error while deleting"
+  }
+}

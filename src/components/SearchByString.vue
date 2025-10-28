@@ -1,7 +1,7 @@
 <template>
   <div>
     <button>
-      <img src="@/assets/icons/search.png" alt="Search" class="icon" />
+      <img src="@/assets/icons/search.png" :alt="$t('common.search')" class="icon" />
     </button>
     <!-- <img src="@/assets/icons/search.png" alt="Search" class="icon" /> -->
     <div class="search-by-string" role="search">

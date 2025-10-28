@@ -1,13 +1,13 @@
 <template>
   <div>
-    <h2>{{ isEdit ? 'Edit' : 'Add' }} Company</h2>
+    <h2>{{ isEdit ? $t('navigation.editCompany') : $t('navigation.newCompany') }}</h2>
     <form @submit.prevent="saveCompany">
-      <input v-model.number="company.idCompany" placeholder="Company ID" required :readonly="isEdit" />
-      <input v-model.number="company.idSegment" placeholder="Segment ID" required />
-      <input v-model="company.description" placeholder="Description" />
-      <input v-model.number="company.status" placeholder="Status" />
-      <input v-model="company.type" placeholder="Type" />
-      <button type="submit">Save</button>
+      <input v-model.number="company.idCompany" :placeholder="$t('forms.placeholders.companyId')" required :readonly="isEdit" />
+      <input v-model.number="company.idSegment" :placeholder="$t('forms.placeholders.segmentId')" required />
+      <input v-model="company.description" :placeholder="$t('forms.placeholders.description')" />
+      <input v-model.number="company.status" :placeholder="$t('forms.placeholders.status')" />
+      <input v-model="company.type" :placeholder="$t('forms.placeholders.type')" />
+      <button type="submit">{{ $t('common.save') }}</button>
     </form>
   </div>
 </template>

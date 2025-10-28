@@ -1,11 +1,11 @@
 <template>
   <div class="modal-overlay">
     <div class="modal-content">
-      <h3>Annulla Evento</h3>
-      <p>Motivo annullamento:</p>
-      <input v-model="reason" placeholder="Motivo" />
-      <button @click="confirm">Conferma</button>
-      <button @click="$emit('close')">Annulla</button>
+      <h3>{{ $t('events.cancel') }}</h3>
+      <p>{{ $t('events.cancelReason') }}</p>
+      <input v-model="reason" :placeholder="$t('forms.placeholders.reason')" />
+      <button @click="confirm">{{ $t('common.confirm') }}</button>
+      <button @click="$emit('close')">{{ $t('common.cancel') }}</button>
     </div>
   </div>
 </template>

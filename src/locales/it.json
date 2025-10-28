@@ -1,0 +1,124 @@
+{
+  "common": {
+    "save": "Salva",
+    "cancel": "Annulla",
+    "edit": "Modifica",
+    "add": "Aggiungi",
+    "delete": "Elimina",
+    "confirm": "Conferma",
+    "close": "Chiudi",
+    "search": "Cerca",
+    "yes": "Sì",
+    "no": "No",
+    "remove": "Rimuovi",
+    "loading": "Caricamento...",
+    "error": "Errore",
+    "success": "Successo",
+    "actions": "Azioni"
+  },
+  "header": {
+    "tagline": "action manager at your fingertips",
+    "menu": "Menu"
+  },
+  "navigation": {
+    "home": "Vista per azienda",
+    "persons": "Anagrafica contatti",
+    "newPerson": "Nuovo contatto",
+    "editPerson": "Modifica contatto",
+    "companies": "Anagrafica aziende",
+    "newCompany": "Nuova azienda",
+    "editCompany": "Modifica azienda",
+    "projects": "Progetti",
+    "newProject": "Nuovo progetto",
+    "editProject": "Modifica progetto",
+    "branches": "Filiali",
+    "newBranch": "Nuova filiale",
+    "editBranch": "Modifica filiale",
+    "employees": "Dipendenti",
+    "newEmployee": "Nuovo dipendente",
+    "editEmployee": "Modifica dipendente",
+    "organization": "Organizzazione",
+    "newOrganization": "Nuova organizzazione",
+    "editOrganization": "Modifica organizzazione",
+    "agenda": "Agenda",
+    "masterData": "Gestione Anagrafiche"
+  },
+  "forms": {
+    "placeholders": {
+      "companyId": "ID Azienda",
+      "segmentId": "ID Segmento",
+      "description": "Descrizione",
+      "status": "Stato",
+      "type": "Tipo",
+      "customerId": "ID Cliente",
+      "familyName": "Cognome",
+      "firstName": "Nome",
+      "role": "Ruolo",
+      "mobile": "Cellulare",
+      "office": "Ufficio",
+      "email": "Email",
+      "street": "Via",
+      "zip": "CAP",
+      "city": "Città",
+      "region": "Regione",
+      "country": "Paese",
+      "reason": "Motivo",
+      "summary": "Sommario",
+      "text": "Testo",
+      "addParticipant": "Aggiungi partecipante...",
+      "searchPlaceholder": "Cerca..."
+    },
+    "labels": {
+      "participants": "Partecipanti",
+      "duration": "Durata",
+      "company": "Azienda",
+      "category": "Categoria",
+      "customer": "Cliente",
+      "address": "Indirizzo",
+      "none": "Nessuno"
+    }
+  },
+  "events": {
+    "cancel": "Annulla Evento",
+    "cancelReason": "Motivo annullamento:",
+    "details": "Dettagli Evento",
+    "edit": "Modifica Evento",
+    "participants": "Partecipanti",
+    "addSelected": "Aggiungi selezionati",
+    "confirmRemove": "Rimuovere {name} dai partecipanti?",
+    "duration": "min"
+  },
+  "reports": {
+    "title": "Report",
+    "addReport": "Aggiungi Report",
+    "editReport": "Modifica Report",
+    "participants": "Partecipanti"
+  },
+  "projects": {
+    "title": "Progetti",
+    "headers": {
+      "customer": "Cliente",
+      "description": "Descrizione",
+      "address": "Indirizzo"
+    }
+  },
+  "companies": {
+    "title": "Aziende"
+  },
+  "persons": {
+    "title": "Contatti",
+    "addEmployee": "Aggiungi Dipendente"
+  },
+  "dashboard": {
+    "byCompany": "Dashboard per Azienda",
+    "masterData": "Dashboard Dati Anagrafici"
+  },
+  "messages": {
+    "noResults": "Nessun risultato trovato",
+    "confirmDelete": "Sei sicuro di voler eliminare questo elemento?",
+    "saveSuccess": "Salvato con successo",
+    "saveError": "Errore durante il salvataggio",
+    "deleteSuccess": "Eliminato con successo",
+    "deleteError": "Errore durante l'eliminazione"
+  }
+}
