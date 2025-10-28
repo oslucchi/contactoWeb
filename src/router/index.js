@@ -21,35 +21,35 @@ import DashboardMasterData from '../views/Dashboards/DashboardMasterData.vue';
 Vue.use(VueRouter);
 
 const routes = [
-  { path: '/', name: 'Home', component: DashboardByCompany, meta: { title: 'Vista per azienda' } },
-  { path: '/persons', component: PersonsList, meta: { title: 'Anagrafica contatti' } },
-  { path: '/persons/new', component: PersonsForm, meta: { title: 'Nuovo contatto' } },
-  { path: '/persons/:id', component: PersonsForm, props: true, meta: { title: 'Modifica contatto' } },
+  { path: '/', name: 'Home', component: DashboardByCompany, meta: { titleKey: 'navigation.home' } },
+  { path: '/persons', component: PersonsList, meta: { titleKey: 'navigation.persons' } },
+  { path: '/persons/new', component: PersonsForm, meta: { titleKey: 'navigation.newPerson' } },
+  { path: '/persons/:id', component: PersonsForm, props: true, meta: { titleKey: 'navigation.editPerson' } },
 
-  { path: '/companies', component: CompaniesList, meta: { title: 'Anagrafica aziende' } },
-  { path: '/companies/new', component: CompaniesForm, meta: { title: 'Nuova azienda' } },
-  { path: '/companies/:id', component: CompaniesForm, props: true, meta: { title: 'Modifica azienda' } },
+  { path: '/companies', component: CompaniesList, meta: { titleKey: 'navigation.companies' } },
+  { path: '/companies/new', component: CompaniesForm, meta: { titleKey: 'navigation.newCompany' } },
+  { path: '/companies/:id', component: CompaniesForm, props: true, meta: { titleKey: 'navigation.editCompany' } },
 
-  { path: '/branches', component: BranchesList, meta: { title: 'Anagrafica filiali' } },
-  { path: '/branches/new', component: BranchesForm, meta: { title: 'Nuova filiale' } },
-  { path: '/branches/:id', component: BranchesForm, props: true, meta: { title: 'Modifica filiale' } },
+  { path: '/branches', component: BranchesList, meta: { titleKey: 'navigation.branches' } },
+  { path: '/branches/new', component: BranchesForm, meta: { titleKey: 'navigation.newBranch' } },
+  { path: '/branches/:id', component: BranchesForm, props: true, meta: { titleKey: 'navigation.editBranch' } },
 
-  { path: '/organization', component: OrganizationList, meta: { title: 'Anagrafica organizzazione' } },
-  { path: '/organization/new', component: OrganizationForm, meta: { title: 'Nuova organizzazione' } },
-  { path: '/organization/:id', component: OrganizationForm, props: true, meta: { title: 'Modifica organizzazione' } },
+  { path: '/organization', component: OrganizationList, meta: { titleKey: 'navigation.organization' } },
+  { path: '/organization/new', component: OrganizationForm, meta: { titleKey: 'navigation.newOrganization' } },
+  { path: '/organization/:id', component: OrganizationForm, props: true, meta: { titleKey: 'navigation.editOrganization' } },
 
-  { path: '/employees', component: EmployeesList, meta: { title: 'Anagrafica impiegati' } },
-  { path: '/employees/new', component: EmployeesForm, meta: { title: 'Nuovo impiegato' } },
-  { path: '/employees/:id', component: EmployeesForm, props: true, meta: { title: 'Modifica impiegato' } },
+  { path: '/employees', component: EmployeesList, meta: { titleKey: 'navigation.employees' } },
+  { path: '/employees/new', component: EmployeesForm, meta: { titleKey: 'navigation.newEmployee' } },
+  { path: '/employees/:id', component: EmployeesForm, props: true, meta: { titleKey: 'navigation.editEmployee' } },
 
-  { path: '/projects', component: ProjectsList, meta: { title: 'Anagrafica progetti' } },
-  { path: '/projects/new', component: ProjectsForm, meta: { title: 'Nuovo progetto' } },
-  { path: '/projects/:id', component: ProjectsForm, props: true, meta: { title: 'Modifica progetto' } },
+  { path: '/projects', component: ProjectsList, meta: { titleKey: 'navigation.projects' } },
+  { path: '/projects/new', component: ProjectsForm, meta: { titleKey: 'navigation.newProject' } },
+  { path: '/projects/:id', component: ProjectsForm, props: true, meta: { titleKey: 'navigation.editProject' } },
 
-  { path: '/dashboardByCompany', component: DashboardByCompany, meta: { title: 'Vista per azienda' } },
-  { path: '/masterDataDashboard', component: DashboardMasterData, meta: { title: 'Gestione Anagrafiche' } },
+  { path: '/dashboardByCompany', component: DashboardByCompany, meta: { titleKey: 'navigation.home' } },
+  { path: '/masterDataDashboard', component: DashboardMasterData, meta: { titleKey: 'navigation.masterData' } },
 
-  { path: '/agenda/schedule', component: AgendaCalendar, props: true, meta: { title: 'Agenda' } },
+  { path: '/agenda/schedule', component: AgendaCalendar, props: true, meta: { titleKey: 'navigation.agenda' } },
 ];
 
 const router = new VueRouter({

@@ -6,17 +6,20 @@
              src="@/assets/icons/contacto.png" 
              style="border: 1px blue"
         />
-        <span>action manager at your fingertips</span>
+        <span>{{ $t('header.tagline') }}</span>
       </div>
 
       <!-- page title -->
       <div class="page-title" v-if="pageTitle">{{ pageTitle }}</div>
 
-      <button class="menu-icon" aria-label="Menu">
+      <div class="header-right">
+        <LanguageSelector />
+        <button class="menu-icon" aria-label="Menu">
           <span></span>
           <span></span>
           <span></span>
-      </button>
+        </button>
+      </div>
     </div>
   <!--
       <div id="header" class="header" >
@@ -30,11 +33,19 @@
 </template>
 
 <script>
+import LanguageSelector from '@/components/LanguageSelector.vue'
+
 export default {
   name: 'contactoWeb',
+  components: {
+    LanguageSelector
+  },
   computed: {
       pageTitle() {
-      // prefer route meta.title, fallback to route.name or empty
+      // prefer route meta.titleKey for i18n, fallback to title or route.name
+      if (this.$route && this.$route.meta && this.$route.meta.titleKey) {
+        return this.$t(this.$route.meta.titleKey);
+      }
       return (this.$route && (this.$route.meta && this.$route.meta.title)) || this.$route.name || '';
     }
   },
@@ -42,14 +53,31 @@ export default {
   watch: {
     // update browser tab title on route change
     '$route'(to) {
-      const t = (to && to.meta && to.meta.title) ? to.meta.title : (to && to.name) ? to.name : 'Contacto';
-      document.title = t + ' - Contacto';
+      this.updateDocumentTitle(to);
+    },
+    // update document title when language changes
+    '$i18n.locale'() {
+      this.updateDocumentTitle(this.$route);
     }
   },
+  
+  methods: {
+    updateDocumentTitle(route) {
+      let title = 'Contacto';
+      if (route && route.meta && route.meta.titleKey) {
+        title = this.$t(route.meta.titleKey);
+      } else if (route && route.meta && route.meta.title) {
+        title = route.meta.title;
+      } else if (route && route.name) {
+        title = route.name;
+      }
+      document.title = title + ' - Contacto';
+    }
+  },
+  
   created() {
     // initialize document.title
-    const t = (this.$route && this.$route.meta && this.$route.meta.title) ? this.$route.meta.title : (this.$route && this.$route.name) ? this.$route.name : 'Contacto';
-    document.title = t + ' - Contacto';
+    this.updateDocumentTitle(this.$route);
   }
 }
 </script>
@@ -118,6 +146,12 @@ html, body, #app {
     font-size: 12px;
     font-style: italic;
     color: darkgreen;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .menu-icon {

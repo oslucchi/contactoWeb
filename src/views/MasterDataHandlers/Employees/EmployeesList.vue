@@ -1,17 +1,17 @@
 <template>
   <div>
-    <h2>Employees</h2>
-    <router-link to="/employees/new">Add Employee</router-link>
+    <h2>{{ $t('navigation.employees') }}</h2>
+    <router-link to="/employees/new">{{ $t('persons.addEmployee') }}</router-link>
     <table>
       <thead>
         <tr>
           <th>ID</th>
           <th>Branch ID</th>
-          <th>Family Name</th>
-          <th>First Name</th>
-          <th>Email</th>
-          <th>Mobile</th>
-          <th>Actions</th>
+          <th>{{ $t('forms.placeholders.familyName') }}</th>
+          <th>{{ $t('forms.placeholders.firstName') }}</th>
+          <th>{{ $t('forms.placeholders.email') }}</th>
+          <th>{{ $t('forms.placeholders.mobile') }}</th>
+          <th>{{ $t('common.actions') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -23,7 +23,7 @@
           <td>{{ employee.email }}</td>
           <td>{{ employee.mobile }}</td>
           <td>
-            <router-link :to="`/employees/${employee.idEmployee}`">Edit</router-link>
+            <router-link :to="`/employees/${employee.idEmployee}`">{{ $t('common.edit') }}</router-link>
           </td>
         </tr>
       </tbody>

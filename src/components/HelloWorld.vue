@@ -1,7 +1,7 @@
 <template>
   <div class="hello">
-    <h1>Hello World!</h1>
-    <p>Welcome to your Vue.js application.</p>
+    <h1>{{ $t('dashboard.byCompany') }}</h1>
+    <p>{{ $t('header.tagline') }}</p>
   </div>
 </template>
 
