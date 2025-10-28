@@ -32,11 +32,14 @@ export default {
       
       // Emit event to parent component if needed
       this.$emit('language-changed', this.currentLanguage)
-      
+
       // Update document title and meta information if needed
       this.$nextTick(() => {
         this.updatePageMeta()
       })
+      // trigger a full reload so the new locale is applied app-wide
+      // (keeps storage/header changes before reload)
+      window.location.reload()
     },
     
     updatePageMeta() {
