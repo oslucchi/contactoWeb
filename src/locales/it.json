@@ -41,7 +41,9 @@
     "newOrganization": "Nuova organizzazione",
     "editOrganization": "Modifica organizzazione",
     "agenda": "Agenda",
-    "masterData": "Gestione Anagrafiche"
+    "dashboardMasterData": "Gestione Anagrafiche",
+    "dashboardByCompany": "Dashboard per Azienda",
+    "dashboardByProject": "Dashboard per Progetto"
   },
   "forms": {
     "placeholders": {

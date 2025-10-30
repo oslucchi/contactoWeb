@@ -41,7 +41,9 @@
     "newOrganization": "New Organization",
     "editOrganization": "Edit Organization",
     "agenda": "Agenda",
-    "masterData": "Master Data Management"
+    "dashboardMasterData": "Master Data Management",
+    "dashboardByCompany": "Dashboard by Company",
+    "dashboardByProject": "Dashboard by Project"
   },
   "forms": {
     "placeholders": {

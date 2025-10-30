@@ -1,6 +1,5 @@
 import Vue from 'vue';
 import VueRouter from 'vue-router';
-import Home from '../views/Home.vue';
 
 import PersonsForm from '../views/MasterDataHandlers/Persons/PersonsForm.vue';
 import PersonsList from '../views/MasterDataHandlers/Persons/PersonsList.vue';
@@ -17,11 +16,12 @@ import ProjectsList from '@/views/MasterDataHandlers/Projects/ProjectsList.vue';
 import ProjectsForm from '@/views/MasterDataHandlers/Projects/ProjectsForm.vue';
 import DashboardByCompany from '../views/Dashboards/DashboardByCompany.vue';
 import DashboardMasterData from '../views/Dashboards/DashboardMasterData.vue';
+import DashboardByProject from '../views/Dashboards/DashboardByProject.vue';
 
 Vue.use(VueRouter);
 
 const routes = [
-  { path: '/', name: 'Home', component: DashboardByCompany, meta: { titleKey: 'navigation.home' } },
+  { path: '/', name: 'Home', component: DashboardByProject, meta: { titleKey: 'navigation.dashboardByProject' } },
   { path: '/persons', component: PersonsList, meta: { titleKey: 'navigation.persons' } },
   { path: '/persons/new', component: PersonsForm, meta: { titleKey: 'navigation.newPerson' } },
   { path: '/persons/:id', component: PersonsForm, props: true, meta: { titleKey: 'navigation.editPerson' } },
@@ -46,8 +46,9 @@ const routes = [
   { path: '/projects/new', component: ProjectsForm, meta: { titleKey: 'navigation.newProject' } },
   { path: '/projects/:id', component: ProjectsForm, props: true, meta: { titleKey: 'navigation.editProject' } },
 
-  { path: '/dashboardByCompany', component: DashboardByCompany, meta: { titleKey: 'navigation.home' } },
-  { path: '/masterDataDashboard', component: DashboardMasterData, meta: { titleKey: 'navigation.masterData' } },
+  { path: '/dashboardByCompany', component: DashboardByCompany, meta: { titleKey: 'navigation.dashboardByCompany' } },
+  { path: '/dashboardByProject', component: DashboardByProject, meta: { titleKey: 'navigation.dashboardByProject' } },
+  { path: '/masterDataDashboard', component: DashboardMasterData, meta: { titleKey: 'navigation.dashboardMasterData' } },
 
   { path: '/agenda/schedule', component: AgendaCalendar, props: true, meta: { titleKey: 'navigation.agenda' } },
 ];
