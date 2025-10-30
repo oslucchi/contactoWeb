@@ -442,6 +442,36 @@ export default {
   },
 
   methods: {
+    // adjust all cell textareas so they grow to fit content (up to CSS max-height)
+    adjustCellTextareas() {
+      this.$nextTick(() => {
+        if (!this.$el) return;
+        const nodes = Array.from(this.$el.querySelectorAll('textarea.cell-textarea'));
+        nodes.forEach(t => {
+          try {
+            // reset to measure content
+            t.style.height = 'auto';
+            // compute maxHeight (computed style may be like "20rem" or "400px")
+            const cs = window.getComputedStyle(t);
+            const maxHRaw = cs.maxHeight || '';
+            let maxH = Number.POSITIVE_INFINITY;
+            if (maxHRaw && maxHRaw !== 'none') {
+              // try parse px first
+              if (maxHRaw.endsWith('px')) maxH = parseFloat(maxHRaw);
+              else if (maxHRaw.endsWith('rem')) maxH = parseFloat(maxHRaw) * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+              else if (maxHRaw.endsWith('em')) maxH = parseFloat(maxHRaw) * (parseFloat(cs.fontSize) || 16);
+            }
+            const needed = t.scrollHeight;
+            const target = Math.min(needed, isFinite(maxH) ? maxH : needed);
+            t.style.height = (target > 0 ? target : Math.max(40, needed)) + 'px';
+            t.style.overflowY = (needed > target) ? 'auto' : 'hidden';
+          } catch (e) {
+            // ignore per-node issues
+          }
+        });
+      });
+    },
+
     onSearchInput(value) {
       const v = value == null ? '' : String(value).trim();
       // if less than 3 chars, restore full dataset
@@ -532,6 +562,7 @@ export default {
             // ignore per-element errors to keep loop robust
             // console.warn('applyEllipsis failed for node', e);
           }
+          this.adjustCellTextareas();
         });
       });
     },
@@ -699,13 +730,20 @@ export default {
           html = String(raw || '');
           break;
         }
+        case 'TEXT': {
+          // Render full text inside a non-resizable readonly textarea so users can scroll.
+          // We escape the content to avoid injecting HTML into the textarea.
+          const content = this.escapeHtml(raw == null ? '' : String(raw));
+          html = `<textarea class="cell-textarea" readonly aria-readonly="true" style="border: none; padding 12px; width: 99%">${content}</textarea>`;
+          break;
+        }
         default:
           html = this.escapeHtml(raw == null ? '' : String(raw));
       }
 
       // sanitize and return (allow only img and span with src/alt/class on img)
       return DOMPurify.sanitize(html, {
-        ALLOWED_TAGS: ['img', 'span'],
+        ALLOWED_TAGS: ['img', 'span', 'textarea'],
         ALLOWED_ATTR: ['src', 'alt', 'class', 'style']
       });
     },
@@ -833,6 +871,9 @@ export default {
         if (!this.$el) return;
         const nodes = this.$el.querySelectorAll('.cell-content');
         if (nodes && nodes.length) nodes.forEach(applyEllipsis);
+        // also adjust any TEXT textareas after layout settles
+        this.adjustCellTextareas();
+
       });
     },
 
@@ -875,6 +916,7 @@ export default {
         body.style.cursor = oldCursor || '';
         this.$nextTick(() => { this.calculateTableDimensions(); this.refreshEllipsis(); });
         // persist updated column config (saveColConfig implemented below)
+        console.log('mouse up ')
         if (typeof this.saveColConfig === 'function') this.saveColConfig({ ...col });
       };
 
@@ -885,23 +927,55 @@ export default {
     // persist column config: try server, fallback to localStorage and emit event
     async saveColConfig(col) {
       try {
-        // best-effort PUT to generic utility endpoint; adjust to your real API if available
-        const body = JSON.parse(JSON.stringify(col));
-        await axios.put(`${API_BASE_URL}/utility/colConfigDetail/${col.idColConfigDetail || 0}`,
-          body);
-        this.$emit('colConfigSaved', { column: col });
+        // compute changed fields by comparing with persisted per-user config (if any)
+        const key = `colConfig:${this.element}:user:${this.user || '0'}`;
+        const existingRaw = localStorage.getItem(key);
+        const existing = existingRaw ? JSON.parse(existingRaw || '{}') : {};
+        const prev = existing[col.colName] || {};
+
+        var changedAttributes = "";
+        var sep = "";
+        Object.keys(col).forEach(k => {
+          // compare as strings to avoid type differences
+          const a = prev[k] === undefined ? undefined : String(prev[k]);
+          const b = col[k] === undefined ? undefined : String(col[k]);
+          console.log(`checking ${a} vs ${b}`);
+          if (a !== b) {
+            console.log(`changedAttributes ${k}`);
+            changedAttributes += sep + k;
+            sep = ",";
+            console.log(`changedAttributes ${changedAttributes}`);
+          }
+        });
+
+        const payload = {
+          column: col,
+          changedAttributes: changedAttributes // array of attribute names that actually changed
+        };
+        console.log('invoking put');
+        await axios.put(`${API_BASE_URL}/utility/colConfigDetail/${col.idColConfigDetail || 0}`, payload);
+
+        // persist locally as well (update existing snapshot)
+        existing[col.colName] = { ...col, savedAt: Date.now() };
+        localStorage.setItem(key, JSON.stringify(existing));
+
+        this.$emit('colConfigSaved', { column: col, changedFields, persisted: 'remote' });
         return;
       } catch (err) {
-        // fallback: localStorage per-user & table
+        // fallback: localStorage per-user & table (also emit changedFields)
         try {
           const key = `colConfig:${this.element}:user:${this.user || '0'}`;
-          const existing = JSON.parse(localStorage.getItem(key) || '{}');
-          existing[col.colName] = { width: col.width, savedAt: Date.now() };
+          const existingRaw = localStorage.getItem(key);
+          const existing = existingRaw ? JSON.parse(existingRaw || '{}') : {};
+          existing[col.colName] = { width: col.width, savedAt: Date.now(), ...col };
           localStorage.setItem(key, JSON.stringify(existing));
-          this.$emit('colConfigSaved', { column: col, persisted: 'local' });
+
+          // compute changedFields for emit (best-effort)
+          const changedFields = Object.keys(col);
+
+          this.$emit('colConfigSaved', { column: col, changedFields, persisted: 'local' });
           return;
-        } 
-        catch (e) {
+        } catch (e) {
           console.warn('saveColConfig fallback failed', e);
         }
       }
@@ -947,6 +1021,8 @@ export default {
       this.$nextTick(() => {
         this.calculateTableDimensions();
         if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
+        // ensure TEXT area heights are adjusted after reload/render
+        this.adjustCellTextareas();
       });
 
       if (typeof this.loadData === 'function') {
@@ -1023,8 +1099,6 @@ export default {
 .action-icons .action-right {
   margin-left: auto;
   /* optional styling */
-  color: #333;
-
   font-size: 1.5rem;
   font-style: 'italic';
   color: rgb(114, 173, 69);
@@ -1212,6 +1286,20 @@ tr.row-selected td {
   background: #DCF8C6 !important;
 }
 
+/* NEW: ensure textarea expands to full cell width and allows wrapping (overrides ellipsis parent) */
+.cell-content textarea.cell-textarea,
+.masterdata-table td .cell-textarea {
+  display: block !important;
+  width: 100% !important;
+  min-width: 100% !important;    /* allow flex to shrink/expand correctly */
+  max-width: 100% !important;
+  white-space: pre-wrap !important; /* allow multiline text */
+  word-break: break-word;
+  overflow-y: auto;           /* vertical scrollbar when needed */
+  box-sizing: border-box;
+  font-family:Verdana, Geneva, Tahoma, sans-serif;
+}
+
 .cell-content {
   /* Ellipsis mechanics */
   overflow: hidden;
@@ -1278,6 +1366,21 @@ tr.row-selected td {
   max-width: 32px;
   max-height: 32px;
   vertical-align: middle;
+}
+
+.cell-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none !important;
+  overflow: auto;
+  min-height: 4rem;      /* reasonable default height */
+  max-height: 20rem;     /* avoid excessive growth */
+  padding: 6px;
+  border: 0; /* keep cell border only from table */
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.2;
 }
 
 .modal-overlay {

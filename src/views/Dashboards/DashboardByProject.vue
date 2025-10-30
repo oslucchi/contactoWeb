@@ -1,9 +1,11 @@
 <template>
     <div class="dashboard-layout">
-        <div class="company-data">
-            <div class="companies-and-events" ref ="companiesAndEvents">
+        <div class="upper-zone" ref="upperZone">
+            <div class="projects-area" ref ="projectsRelatedData">
                 <!-- Companies -->
-                <section ref="ProjectsSection" class="dashboard-block projects-block"
+                <section 
+                        ref="projectsSection" 
+                        class="projects-block"
                 >
                     <GenericDataViewer 
                         ref="projectViewer" 
@@ -16,13 +18,22 @@
                         :containerWidth="mainAreaWidth" 
                         @rowSelected="onProjectSelected" />
                 </section>
-                <section ref="ProjectDescriptionSection" class="dashboard-block projectsDescription-block"
+                <section 
+                        ref="projectDescriptionSection" 
+                        class="projectDescription-block"
                 >
-                    <textarea>
-                        {{ selectedProject ? selectedProject.description : 'Select a project to see its description here.' }}
+                    <span>
+                        {{ $t('navigation.dashboardByProjectDescription') }}
+                    </span>
+                    <textarea
+                            :value="selectedProject ? selectedProject.description : ''"
+                            :placeholder="projectPlaceholder"
+                    >
                     </textarea>
                 </section>
-                <section ref="companiesSection" class="dashboard-block companies-block"
+                <section 
+                        ref="companiesSection" 
+                        class="companies-block"
                 >
                     <GenericDataViewer 
                         ref="companyViewer" 
@@ -31,12 +42,14 @@
                         :user="userId"
                         :filter="companySearchFilter"
                         :featuresEnabled="[false, false, false, true, true]"
-                        :tableHeight="companiesHeight" 
+                        :tableHeight="projectsHeight" 
                         :containerWidth="mainAreaWidth" 
                         @rowSelected="onCompanySelected" />
                 </section>
-                <section ref="personsSection" class="dashboard-block persons-block"
-                    :style="{ height: personsHeight + 'px' }">
+                <section 
+                        ref="personsSection" 
+                        class="persons-block"
+                >
                     <GenericDataViewer 
                         ref="personViewer" 
                         page="dashboardProjects" 
@@ -44,15 +57,49 @@
                         :user="userId"
                         :filter="personSearchFilter" 
                         :featuresEnabled="[false, false, false, true, false]"
-                        :tableHeight="personsHeight" 
+                        :tableHeight="projectsHeight" 
                         :containerWidth="mainAreaWidth" />
                 </section>
-
             </div>
             <!-- Divider -->
-            <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('companiesAndEvents','branchesSection', $event)"></div>
+            <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('upper-zone','lower-zone', $event)"></div>
+            <div class="lower-zone" ref ="lowerZone">
+                <section ref="eventsSection" 
+                     class="events-block"
+                >
+                    <GenericDataViewer 
+                        ref="eventsViewer" 
+                        page="dashboardProjects" 
+                        element="Event" 
+                        :user="userId"
+                        :filter="eventsFilter"
+                        :featuresEnabled="[false, false, false, true, true]"
+                        :tableHeight="eventsHeight" 
+                        :containerWidth="mainAreaWidth" 
+                        @rowSelected="onEventSelected" />
+                </section>
 
-            <!-- Persons -->
+                <section 
+                        ref="reportsSection" 
+                        class="reports-block"
+                >
+                    <GenericDataViewer 
+                        ref="reportsViewer" 
+                        page="dashboardProjects" 
+                        element="Report" 
+                        :user="userId"
+                        :filter="reportsFilter"
+                        :featuresEnabled="[false, false, false, false, false]"
+                        :tableHeight="eventsHeight" 
+                        :containerWidth="mainAreaWidth" 
+                    />
+                    <textarea
+                            :value="selectedReport ? selectedReport.report : ''"
+                            :placeholder="projectPlaceholder"
+                    >
+                    </textarea>
+                </section>
+            </div>
         </div>
     </div>
 </template>
@@ -62,6 +109,8 @@ import GenericDataViewer from '@/views/Utils/GenericDataViewer.vue';
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import dayjs from 'dayjs';
+import i18n from '@/locales'; // <-- import the i18n instance you exported
+
 
 export default {
     components: { GenericDataViewer },
@@ -69,6 +118,9 @@ export default {
         return {
             projectSearchFilter: { },
             companySearchFilter: { id: 0 },
+            eventsFilter: { id: 0 },
+            reportsFilter: { id: 0 },
+
             personSearchFilter: { listOfIds: '' },
             selectedProject: null,
             selectedCompany: null,
@@ -76,8 +128,7 @@ export default {
             userId: 1,
 
             projectsHeight: 400,
-            companiesHeight: 400,
-            personsHeight: 400,
+            eventsHeight: 400,
 
             // drag state
             _dragging: null,
@@ -93,6 +144,16 @@ export default {
             _shrinkTarget: null,
         };
     },
+
+    computed: {
+        // use this.$t if vue-i18n was injected into Vue root, otherwise call the imported instance
+        projectPlaceholder() {
+            return (typeof this.$t === 'function')
+                ? this.$t('forms.placeholders.projectDescription')
+                : i18n.t('forms.placeholders.projectDescription');
+        }
+    },
+
     mounted() {
         this._boundHandleResize = this.handleResize.bind(this);
         window.addEventListener('resize', this._boundHandleResize);
@@ -144,9 +205,11 @@ export default {
               ? (this.selectedProject.idProject != null ? this.selectedProject.idProject : (this.selectedProject.id != null ? this.selectedProject.id : -1))
               : -1;
             this.companySearchFilter.id = projectId;
-            
+            this.eventsFilter.id = projectId;
+
             // also clear selectedCompany and apply person filter reset (or narrow persons by project if desired)
             this.selectedCompany = null;
+            this.selectedEvent = null;
 
             // reload companies then build person filter from selected company ids and reload persons
             try {
@@ -165,28 +228,6 @@ export default {
 
               // allow Vue to finish rendering the company viewer
               await this.$nextTick();
-
-              // helper to extract selected ids from company viewer
-              const getSelectedCompanyIds = (ref) => {
-                if (!ref) return [];
-                try {
-                  if (typeof ref.getSelectedIds === 'function') {
-                    const v = ref.getSelectedIds();
-                    return Array.isArray(v) ? v.map(String) : [];
-                  }
-                  if (Array.isArray(ref.selectedIds)) {
-                    return ref.selectedIds.map(String);
-                  }
-                  if (ref.selectedRowId != null) {
-                    return [String(ref.selectedRowId)];
-                  }
-                  // no explicit selection: return empty -> persons will show none
-                  return [];
-                } catch (e) {
-                    console.error('error getting selected company ids', e);
-                    return [];
-                }
-              };
 
               // extract company ids from the loaded dataset (not from selection)
               const getCompanyIdFromItem = item => {
@@ -259,8 +300,12 @@ export default {
         onEventSelected(payload) {
             const id = payload && payload.id ? payload.id : null;
             this.selectedEvent = payload && payload.item ? payload.item : null;
-            this.eventFilter = id ? { id } : { id: -1 };
+            const eventId = this.selectedEvent
+              ? (this.selectedEvent.idEvent != null ? this.selectedEvent.idEvent : (this.selectedEvent.idEvent != null ? this.selectedEvent.idEvent : 0))
+              : -1;
+            this.reportsFilter.id = eventId;
             this.selectedReport = null;
+            console.log(`reportFilter ${JSON.stringify(this.reportsFilter)}`);
             this.$nextTick(() => {
                 if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.reloadData === 'function') {
                     this.$refs.reportsViewer.reloadData();
@@ -355,17 +400,12 @@ export default {
 
                 // update stored numeric heights used by children (measure actual sections if present)
                 // if we changed top container, measure its children; otherwise update the two refs directly
-                if (this._stretchTargetName === 'companiesAndEvents') {
-                    const compRef = this.$refs.companiesSection;
-                    const eventsRef = this.$refs.eventsSection;
-                    if (compRef) this.companiesHeight = Math.round(compRef.getBoundingClientRect().height);
-                    if (eventsRef) this.eventsHeight = Math.round(eventsRef.getBoundingClientRect().height);
-                    if (bottomEl === this.$refs.branchesSection) this.branchesHeight = Math.round(newBottom);
-                } else {
-                    // generic mapping for named refs to data fields
-                    if (this._stretchTargetName === 'branchesSection') this.branchesHeight = Math.round(newTop);
-                    if (this._shrinkTargetName === 'personsSection') this.personsHeight = Math.round(newBottom);
-                }
+                if (this._stretchTargetName === 'upper-zone') {
+                    const upperRef = this.$refs.upperZone;
+                    const lowerZone = this.$refs.lowerZone;
+                    if (upperRef) this.projectsHeight = Math.round(upperRef.getBoundingClientRect().height);
+                    if (lowerZone) this.eventsHeight = Math.round(lowerZone.getBoundingClientRect().height);
+                } 
             }
 
             this._callChildrenCalc();
@@ -422,91 +462,120 @@ export default {
     align-items: stretch;
 }
 
-.company-data {
+.dashboard-block {
+    min-height: 0;
+    box-sizing: border-box;
+    /* allow inner viewer to show its own scrollbars — don't create section scrollbars */
+    overflow: visible;
+}
+
+.upper-zone {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     gap: 8px;
     padding: 8px;
     min-height: 0; /* critical for inner scrolling */
-    min-width: 65%;  /* allow this flex child to shrink and prevent overflow */
-    width: 65%;
-    /* max-width: 1300px; keep previous cap */
+    width: 100%;
 }
-.companies-and-events {
+
+.projects-area {
     display: flex;
     gap: 8px;
     min-height: 0;
-    height: 100%;
+    height: 50%;
     width: 100%;
     align-items: stretch;
 }
 
 /* make each top section stretch to container height so changing the container affects them */
-.companies-and-events > section {
+.projects-area > section {
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
 }
 
 /* make each section a flexible child and allow inner scroll/ellipsis */
+.projects-block,
 .companies-block,
-.events-block {
+.persons-block {
   flex: 1 1 0;
   min-height: 0;
   box-sizing: border-box;
   padding: 2px
 }
 
-/* right sidebar fixed width */
-.sidebar {
-    flex: 0 0 auto;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    height: 100%;
-    min-width: 35%;  /* allow this flex child to shrink and prevent overflow */
-    width: 35%;
-    box-sizing: border-box;
-    border-left: 1px solid rgba(0,0,0,0.04); /* subtle separator if desired */
-    background: transparent;
-}
-
-.dashboard-block {
-    min-height: 0;
-    box-sizing: border-box;
-    /* allow inner viewer to show its own scrollbars — don't create section scrollbars */
-    overflow: visible;
-
+.projects-block {
+    width:40%
 }
 
 .companies-block {
-    min-height: 160px;
-}
-
-.branches-block {
-    min-height: 120px;
+    width: 24%
 }
 
 .persons-block {
-    min-height: 120px;
+    width: 8%
 }
 
-.reports-block {
-    height: 100%;
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    /* min-height: 200px; */
+.projectDescription-block {
+    width: 20%;
+    border: 1px solid blue;
 }
-.reports-block textarea {
+
+.projectDescription-block span {
+    display: block;
+    width: 100%;
+    text-align: end;
+    font-size: 1.5rem;
+    color: rgb(114, 173, 69);
+    padding-right: 8px;
+}
+
+.projectDescription-block textarea {
+  width: 100%;
   height: 100% !important;
-  min-height: 0;
+  min-height: 100%;
   resize: none !important;
-  box-sizing: border-box;
   overflow: auto;
   display: block;
+    font-size: 1rem;
+
+
+    /* remove textarea chrome so container border is the only visible frame */
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+
+  /* keep spacing and sizing controlled by container */
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: inherit;
 }
+
+.lower-zone {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    padding: 8px;
+    min-height: 0;
+    width: 100%;
+}
+
+.lower-zone > section {
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+}
+
+.events-block {
+    width: 25%
+}
+
+.reports-block{
+    width: 75%
+}
+
 .divider {
     height: 8px;
     cursor: row-resize;
@@ -522,30 +591,5 @@ export default {
 .divider:hover {
     background: rgba(0, 0, 0, 0.04);
 }
-.modal-overlay {
-  position: fixed;
-  left: 0; right: 0; top: 0; bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.35);
-  z-index: 9999;
-}
-.modal-content {
-  background: #fff;
-  max-width: 900px;
-  width: calc(100% - 48px);
-  border-radius: 6px;
-  padding: 14px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-}
-.modal-close {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  background: transparent;
-  border: none;
-  font-weight: bold;
-  cursor: pointer;
-}
+
 </style>

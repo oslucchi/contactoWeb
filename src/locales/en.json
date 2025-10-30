@@ -43,7 +43,8 @@
     "agenda": "Agenda",
     "dashboardMasterData": "Master Data Management",
     "dashboardByCompany": "Dashboard by Company",
-    "dashboardByProject": "Dashboard by Project"
+    "dashboardByProject": "Dashboard by Project",
+    "dashboardByProjectDescription": "Capitolato"
   },
   "forms": {
     "placeholders": {
@@ -68,7 +69,8 @@
       "summary": "Summary",
       "text": "Text",
       "addParticipant": "Add participant...",
-      "searchPlaceholder": "Search..."
+      "searchPlaceholder": "Search...",
+      "projectDescription": "Select a project to see its description here"
     },
     "labels": {
       "participants": "Participants",

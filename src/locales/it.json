@@ -43,7 +43,8 @@
     "agenda": "Agenda",
     "dashboardMasterData": "Gestione Anagrafiche",
     "dashboardByCompany": "Dashboard per Azienda",
-    "dashboardByProject": "Dashboard per Progetto"
+    "dashboardByProject": "Dashboard per Progetto",
+    "dashboardByProjectDescription": "Capitolato"
   },
   "forms": {
     "placeholders": {
@@ -68,7 +69,8 @@
       "summary": "Sommario",
       "text": "Testo",
       "addParticipant": "Aggiungi partecipante...",
-      "searchPlaceholder": "Cerca..."
+      "searchPlaceholder": "Cerca...",
+      "projectDescription": "Selezionare un progetto"
     },
     "labels": {
       "participants": "Partecipanti",
