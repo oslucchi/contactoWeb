@@ -63,6 +63,7 @@
                 :key="getRowIdFromData(item, rowIdx)"
                 :data-rowid="getRowIdFromData(item, rowIdx)"
                 :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }"
+                :style="getRowStyle(item, rowIdx)"
               >
                 <td 
                     v-for="col in visibleColumns" 
@@ -236,6 +237,8 @@ export default {
     emitOnSelect: { type: [String, Array], default: null },
     // columnsToSearch: { type: Array, default: () => null },
     // searchPlaceholder: { type: String, default: null }
+    _rowHeights:  { type: Array, default: () => [] }, // Store natural row heights
+    _rowHeightLocks: { type: Array, default: () => [] }, // Store row height locks
 
   },
   emits: ['rowSelected'],
@@ -269,6 +272,7 @@ export default {
       _externalListeners: [],
 
       _ellipsisScheduledFlag: false,
+
     };
   },
 
@@ -596,6 +600,12 @@ export default {
     async handleCellClick(evt, item, rowIdx, col) {
       // ensure row is selected
       const rowId = this.getRowIdFromData(item, rowIdx);
+      // Capture current row height BEFORE selecting the cell
+      await this.$nextTick();
+      const rowElement = this.$el.querySelector(`[data-rowid="${rowId}"]`);
+      if (rowElement) {
+        this._rowHeights[rowId] = rowElement.offsetHeight;
+      }
       if (this.selectedRowId !== rowId) {
         // select row first
         this.selectRow(item, rowIdx);
@@ -611,10 +621,7 @@ export default {
         // prefer editable textarea rendered by Vue when cell is selected
         const td = evt.currentTarget || evt.target.closest('td');
         let textarea = td && td.querySelector('textarea.cell-textarea-editable');
-        if (!textarea) {
-          // fallback: the v-html textarea may still be present; try to focus it to trigger selection flow
-          textarea = td && td.querySelector('textarea.cell-textarea');
-        }
+
         if (textarea) {
           textarea.focus({ preventScroll: true });
           // position caret at end for editable fields
@@ -622,7 +629,9 @@ export default {
             const val = textarea.value || '';
             textarea.setSelectionRange(val.length, val.length);
           }
-        }else {
+        }
+        else {
+          textarea = td && td.querySelector('textarea.cell-textarea');
           // If textarea not found yet, wait a tick and try again (DOM may not be fully updated)
           await this.$nextTick();
           await new Promise(resolve => setTimeout(resolve, 0));
@@ -1135,6 +1144,19 @@ export default {
       // Note: per requirement, do NOT emit rowSelected from selectCell
     },
 
+    getRowStyle(item, rowIdx) {
+      const rowId = this.getRowIdFromData(item, rowIdx);
+      const naturalHeight = this._rowHeights[rowId];
+      
+      // If this row is being edited and we have a captured height, use it
+      // honor selected row OR a temporary height lock created on deselect
+      if ((this.selectedRowId === rowId || 
+           this._rowHeightLocks[rowId]) && naturalHeight) {
+        return { height: `${naturalHeight}px`, minHeight: `${naturalHeight}px` };
+      }
+      
+      return {}; // Let the row size naturally
+    },
     refreshEllipsis() {
       const runner = (cb) => {
         if (typeof window.requestIdleCallback === 'function') {
@@ -1348,7 +1370,29 @@ export default {
         this.reloadData();
       }
     },
-    deselectRow() { this.selectedRowId = null; this.selectedCell = null; this.selectedItem = null; },
+    deselectRow() {
+      // keep previous row height locked for a short time to avoid collapse flicker
+      const prev = this.selectedRowId;
+      this.selectedRowId = null;
+      this.selectedCell = null;
+      this.selectedItem = null;
+      if (prev != null && this._rowHeights && this._rowHeights[prev]) {
+        // lock height for a short time to allow re-render and layout to stabilise
+        this._rowHeightLocks[prev] = true;
+        // remove lock after a short delay and refresh ellipsis/textarea heights
+        setTimeout(() => {
+          delete this._rowHeightLocks[prev];
+          // optionally recompute a fresh measured height for the new content
+          this.$nextTick(() => {
+            const rowEl = this.$el && this.$el.querySelector(`[data-rowid="${prev}"]`);
+            if (rowEl && rowEl.offsetHeight) {
+              this._rowHeights[prev] = rowEl.offsetHeight;
+            }
+            if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
+          });
+        }, 150); // 150ms is conservative; lower if you prefer snappier unlock
+      }
+    },
     // called when GenericCellEditor emits 'saved' (server succeeded)
   },
 
@@ -1515,9 +1559,9 @@ export default {
   padding: 2px 6px;
   text-align: left;
   background: #fff;
-  height: 18px;
   vertical-align: middle;
   box-sizing: border-box;
+  height: 100%;
 }
 
 .masterdata-table th {
@@ -1532,6 +1576,12 @@ export default {
   position: relative;
 }
 
+.masterdata-table td > div {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+}
 .masterdata-table td div[title]:hover::after {
   content: attr(title);
   position: absolute;
@@ -1570,6 +1620,7 @@ tr.row-selected td {
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
+  min-height: inherit !important;
   white-space: pre-wrap !important;
   word-break: break-word;
   overflow-y: auto;
@@ -1590,6 +1641,7 @@ tr.row-selected td {
 
 /* editable cell textarea style */
 .cell-textarea-editable {
+  height: 100%;
   width: 100%;
   box-sizing: border-box;
   resize: none !important;
@@ -1627,6 +1679,7 @@ tr.row-selected td {
 
 .cell-content {
   /* Ellipsis mechanics */
+  height: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1640,6 +1693,12 @@ tr.row-selected td {
   max-width: 100%;
   box-sizing: border-box;
   position: relative;
+}
+
+.cell-content > div {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .td-editable {

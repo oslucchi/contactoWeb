@@ -156,7 +156,27 @@ export default {
   font: inherit;
   resize: none;
   padding: 6px;
+  height: auto !important;
+  min-height: inherit !important;
+  line-height: 1.2 !important;
+  white-space: pre-wrap !important;
+  overflow-y: auto !important;
 }
 .gce-loading { font-size: 0.85em; color: #666; }
 .gce-error { color: #b00; font-size: 0.9em; margin-top: 4px; }
+
+.generic-cell-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+.generic-cell-editor .gce-textarea,
+.generic-cell-editor .gce-input {
+  flex: 1 1 auto;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
 </style>
