@@ -93,11 +93,13 @@
                         :tableHeight="eventsHeight" 
                         :containerWidth="mainAreaWidth" 
                     />
+<!--
                     <textarea
                             :value="selectedReport ? selectedReport.report : ''"
                             :placeholder="projectPlaceholder"
                     >
                     </textarea>
+-->
                 </section>
             </div>
         </div>
