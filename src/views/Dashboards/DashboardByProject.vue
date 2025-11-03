@@ -23,7 +23,7 @@
                         class="projectDescription-block"
                 >
                     <span>
-                        {{ $t('navigation.dashboardByProjectDescription') }}
+                        {{ prescriptionTitle }}
                     </span>
                     <textarea
                             :value="selectedProject ? selectedProject.description : ''"
@@ -157,6 +157,12 @@ export default {
             return (typeof this.$t === 'function')
                 ? this.$t('forms.placeholders.projectDescription')
                 : i18n.t('forms.placeholders.projectDescription');
+        },
+
+        prescriptionTitle() {
+            return (typeof this.$t === 'function')
+                ? this.$t('forms.placeholders.prescription')
+                : i18n.t('forms.placeholders.prescription');
         }
     },
 
