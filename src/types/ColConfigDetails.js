@@ -10,7 +10,10 @@ export default class ColConfigDetails {
     visible = true,
     useForSort = false,
     style = '',
-    useInSearch = false
+    useInSearch = false,
+    editEndpoint = '',
+    editMethod = '',
+    editPayloadTemplate = '',
   } = {}) {
     this.idColConfigDetail = idColConfigDetail;
     this.idColConfigHeader = idColConfigHeader;
@@ -23,5 +26,8 @@ export default class ColConfigDetails {
     this.useForSort = useForSort;
     this.style = style;
     this.useInSearch = useInSearch;
+    this.editEndpoint = editEndpoint;
+    this.editMethod = editMethod;
+    this.editPayloadTemplate = editPayloadTemplate;
   }
 }

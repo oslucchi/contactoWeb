@@ -10,6 +10,7 @@ export default class ColConfigHeader {
     restModuleName = '',
     dataCollectMethod = '',
     showTitle = '',
+    primaryKey = '',
     columns = []
   } = {}) {
     this.idColConfigHeader = idColConfigHeader;
@@ -20,6 +21,7 @@ export default class ColConfigHeader {
     this.restModuleName = restModuleName;
     this.dataCollectMethod = dataCollectMethod;
     this.showTitle = showTitle;
+    this.primaryKey = primaryKey;
     this.columns = columns.map(c => c instanceof ColConfigDetails ? c : new ColConfigDetails(c));
   }
 }

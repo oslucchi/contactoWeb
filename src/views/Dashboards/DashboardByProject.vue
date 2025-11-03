@@ -122,6 +122,12 @@ export default {
             reportsFilter: { id: 0 },
 
             personSearchFilter: { listOfIds: '' },
+            // reactive state used by the template / handlers
+            selectedReport: null,
+            selectedReportOriginalContent: '',
+            selectedEvent: null,
+            selectedBranch: null,
+
             selectedProject: null,
             selectedCompany: null,
 

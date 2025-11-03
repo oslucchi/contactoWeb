@@ -1,5 +1,5 @@
 <template>
-  <div class="generic-data-viewer-root" :style="rootContainerStyle" @click="deselectRow">
+  <div class="generic-data-viewer-root" :style="rootContainerStyle" @click="onRootClick">
     <div class="masterdata-content" ref="masterdataContent">
       <!-- Action bar -->
       <div class="action-icons">
@@ -68,7 +68,9 @@
                     v-for="col in visibleColumns" 
                     :key="col.idColConfigDetail"
                     :class="{ 'td-editable': selectedRowId === getRowIdFromData(item, rowIdx) && selectedCell === col.colName && featuresEnabled[4] }"
-                    @click.stop="selectedRowId === getRowIdFromData(item, rowIdx) ? selectCell(item, rowIdx, col.colName) : selectRow(item, rowIdx)"                >
+                    @click.stop="handleCellClick($event, item, rowIdx, col)"
+                    @focusin.stop="handleCellFocusIn($event, item, rowIdx, col)"
+                >
                   <div 
                     v-if="item[col.colName] !== undefined"
                     style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;"
@@ -83,14 +85,30 @@
                     }}
                     <div 
                         v-if="col.renderLayout && 
-                              String(item[col.renderLayout]).trim() !== '' && 
+                              String(col.renderLayout).trim() !== '' && 
                               hasValue(item, col)"
                         class="cell-content"
                         v-ellipsis="() => getCellTitle(item, col)"
                         style="flex: 1 1 auto; min-width: 0;"
                     >
-                      <div v-if="selectedCell === col.colName && featuresEnabled[4]">
-                        <input class="table-input" v-model="item[col.colName]" style="width: 100%;" />
+                      <div v-if="selectedCell === col.colName && (col.editable || isTextLayout(col) && isTextEditable(col))">
+                        <GenericCellEditor
+                          :value="item[col.colName]"
+                          :editable="!!(col.editable || (isTextLayout(col) && isTextEditable(col)))"
+                          :editorType="isTextLayout(col) ? 'TEXT' : 'INPUT'"
+                          :editEndpoint="col.editEndpoint || ''"
+                          :editMethod="col.editMethod || 'PUT'"
+                          :payloadTemplate="col.editPayloadTemplate || ''"
+                          :rowId="getRowIdFromData(item, rowIdx)"
+                          :colName="col.colName"
+                          :item="item"
+                          @cellUnchanged="onCellUnchanged"
+                          @actionCanceled="onActionCanceled"
+                          @saveCell="onCellSave"
+                          @savedCell="onCellSaved"
+                          @saveCellFailed="onSaveCellFailed"
+                          @saveCellConfirm="onSaveCellConfirm"
+                        />
                       </div>
                       <div 
                           v-else 
@@ -137,6 +155,8 @@ import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import ColConfigHeader from '@/types/ColConfigHeader';
 import DOMPurify from 'dompurify';
+import GenericCellEditor from '@/views/Utils/GenericCellEditor.vue';
+
 
 const _ellipsisThunks = new WeakMap(); // store thunks for elements
 let _ellipsisScheduled = false;        // debounce flag
@@ -197,7 +217,10 @@ function applyEllipsis(el) {
 
 export default {
   name: 'GenericDataViewer',
-  components: { SearchByString },
+  components: { 
+    SearchByString, 
+    GenericCellEditor
+  },
   props: {
     page: { type: String, required: true },
     element: { type: String, required: true },
@@ -218,6 +241,9 @@ export default {
   emits: ['rowSelected'],
   data() {
     return {
+      // snapshots of original values for editable cells keyed by "<rowId>::<colName>"
+      _cellOriginalContent: {},
+
       tableConfig: { table: this.element, columns: [] },
       _itemsSource: [], // original unfiltered records
       items: [],
@@ -299,7 +325,7 @@ export default {
       let visibleColumns =  cols.filter(col => (col.visible === 1 || col.visible === '1' || col.visible === true || col.visible === 'Y' || col.visible === 'y'))
         .sort((a, b) => (a.position || 0) - (b.position || 0));
       
-      console.log("Visible Columns:", visibleColumns);
+      console.log(cols.filter(col => (col.editEndpoint && col.editEndpoint !== ''))); // DEBUG
       return visibleColumns;
     },
 
@@ -316,13 +342,17 @@ export default {
       return sorted;
     },
     itemIdField() {
+      // Prefer an explicit primary key declared on tableConfig.
+      if (this.tableConfig) {
+        const explicit = this.tableConfig.primaryKey;
+        if (explicit) return explicit;
+      }
       if (!this.tableConfig || !this.tableConfig.columns) return null;
       let idCol = this.tableConfig.columns.find(col => col.colName && col.colName.toLowerCase().startsWith('id'));
       if (!idCol) idCol = this.tableConfig.columns.find(col => col.position === 0);
       return idCol ? idCol.colName : null;
     },
     showTitle() {
-      console.log("showTable is ", this.tableConfig.showTitle);
       if (!this.tableConfig || !this.tableConfig.showTitle) return '';
         return this.tableConfig.showTitle;
     },
@@ -377,7 +407,6 @@ export default {
           const useInSearch = col && col.useInSearch;
           const name = col && col.showName;
           const colName = col && col.colName;
-          console.log(col);
           if (useInSearch && name && colName) {
             this.searchPlaceholder += sep + String(name).substring(0, 5);
             this.columnsToSearch.push(col.colName);
@@ -385,11 +414,6 @@ export default {
           }
         }
       )
-      console.log("Search Placeholder:", this.searchPlaceholder);
-      console.log("Columns to Search:", this.columnsToSearch);
-      console.log("Table Config:", this.tableConfig);
-
-      console.log()
       this.$nextTick(() => {
         this.calculateTableDimensions();
         if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
@@ -442,6 +466,249 @@ export default {
   },
 
   methods: {
+    onCellUnchanged() {
+      console.log('onCellUnchanged payload', payload);
+      this.deselectRow();
+    },
+    
+    // optional: handle failed save (revert optimistic update)
+    onActionCanceled(payload) {
+      console.warn('onActionCanceled: no changes required', payload);
+      // implement revert if desired: 
+      // find item by id and set column back to original 
+      // (if you stored it)
+    },
+
+    // invoked when editor emits save (no endpoint configured)
+    onCellSave(payload) {
+      console.log('onCellSave payload', payload);
+      // parent-level handler may persist
+      this.$emit('onCellSave', payload);
+      // update model and deselect
+      const item = this.items.find(i => this.getRowIdFromData(i) === payload.id);
+      if (item) item[payload.col] = payload.value;
+      this.deselectRow();
+    },
+
+    // invoked when editor saved via endpoint
+    onCellSaved(payload) {
+      console.log('GenericDataViewer: onCellSaved called with payload', payload);
+      // payload: { id, col, value, response }
+      try {
+        const { id, col, value, response } = payload || {};
+
+        const matchById = (arr, idToMatch) => {
+          return arr.findIndex(i => String(this.getRowIdFromData(i)) === String(idToMatch));
+        };
+
+        const applyUpdate = (arr, idx) => {
+          if (idx === -1 || !arr || !Array.isArray(arr)) return false;
+          // prefer server response object to update the whole item when available
+          if (response && typeof response === 'object') {
+            // merge server response into existing object to keep reactivity
+            const src = response;
+            if (this.$set) {
+              Object.keys(src).forEach(k => this.$set(arr[idx], k, src[k]));
+            } else {
+              Object.assign(arr[idx], src);
+            }
+          } else {
+            // fallback: only set the changed column
+            if (this.$set) this.$set(arr[idx], col, value);
+            else arr[idx][col] = value;
+          }
+          return true;
+        };
+
+        // update visible items, then the source copy
+        let idx = matchById(this.items, id);
+        let updated = applyUpdate(this.items, idx);
+        if (!updated) {
+          idx = matchById(this._itemsSource, id);
+          updated = applyUpdate(this._itemsSource, idx);
+        }
+        console.log('onCellSaved updated visible items:', updated, idx);
+
+        if (!updated) {
+          // no matching item found: attempt to find by id inside response and insert/replace
+          if (response && typeof response === 'object') {
+            const newItem = response;
+            const idField = this.itemIdField;
+            if (idField && newItem[idField] != null) {
+              // try replace existing based on id equality loose
+              const outerIdx = this.items.findIndex(i => String(i[idField]) === String(newItem[idField]));
+              if (outerIdx !== -1) {
+                if (this.$set) Object.keys(newItem).forEach(k => this.$set(this.items[outerIdx], k, newItem[k]));
+                else Object.assign(this.items[outerIdx], newItem);
+              } else {
+                this.items.push(newItem);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('onCellSaved update failed', e);
+      } finally {
+        this.deselectRow();
+        this.$emit('cellSaved', payload);
+      }
+    },
+
+    onSaveCellFailed(payload) {
+      console.warn('conSaveCellFailed', payload);
+      // keep editor open or show toast; for now deselect
+      this.deselectRow();
+    },
+    
+    // optional: handle server confirmation if you want to merge server fields
+    onSaveCellConfirm(payload) {
+      console.warn('conSaveCellFailed', payload);
+      // payload.response contains server object — merge if necessary
+      this.onCellSaved(payload); // you can reuse logic to update from response
+    },
+
+      // Guarded root click: defer deselection so blur handlers fire first.
+    onRootClick(evt) {
+      try {
+        const target = evt && evt.target ? evt.target : null;
+        // If the click is inside a textarea (editable or display), do nothing: allow blur to manage close/save.
+        if (target && target.closest && (target.closest('textarea.cell-textarea-editable') || target.closest('textarea.cell-textarea'))) {
+          return;
+        }
+      } catch (e) { /* ignore */ }
+      // Defer deselection so textarea blur fires first
+      setTimeout(() => { this.deselectRow(); }, 0);
+    },
+
+    // Focus-in handler used by template — delegate to handleCellClick so v-html/textarea focus
+    // triggers the same selection/focus behavior. Keeps backward compatibility.
+    async handleCellFocusIn(evt, item, rowIdx, col) {
+      // stopPropagation already applied in template; forward to existing click handler logic
+      try {
+        await this.handleCellClick(evt, item, rowIdx, col);
+      } catch (e) {
+        // swallow errors to avoid breaking UI
+        console.warn('handleCellFocusIn failed', e);
+      }
+    },
+
+  
+    async handleCellClick(evt, item, rowIdx, col) {
+      // ensure row is selected
+      const rowId = this.getRowIdFromData(item, rowIdx);
+      if (this.selectedRowId !== rowId) {
+        // select row first
+        this.selectRow(item, rowIdx);
+        // small delay so selection state is applied before selecting cell
+        await this.$nextTick();
+      }
+      // now select the cell
+      this.selectCell(item, rowIdx, col.colName);
+
+      // if the column is a TEXT editable cell, focus the Vue-controlled textarea so @blur will fire later
+      await this.$nextTick();
+      try {
+        // prefer editable textarea rendered by Vue when cell is selected
+        const td = evt.currentTarget || evt.target.closest('td');
+        let textarea = td && td.querySelector('textarea.cell-textarea-editable');
+        if (!textarea) {
+          // fallback: the v-html textarea may still be present; try to focus it to trigger selection flow
+          textarea = td && td.querySelector('textarea.cell-textarea');
+        }
+        if (textarea) {
+          textarea.focus({ preventScroll: true });
+          // position caret at end for editable fields
+          if (this.isTextLayout(col) && this.isTextEditable(col)) {
+            const val = textarea.value || '';
+            textarea.setSelectionRange(val.length, val.length);
+          }
+        }else {
+          // If textarea not found yet, wait a tick and try again (DOM may not be fully updated)
+          await this.$nextTick();
+          await new Promise(resolve => setTimeout(resolve, 0));
+          try {
+            const td2 = evt.currentTarget || (evt.target && evt.target.closest && evt.target.closest('td'));
+            const textarea2 = td2 && td2.querySelector('textarea.cell-textarea-editable');
+            if (textarea2) {
+              textarea2.focus({ preventScroll: true });
+              if (this.isTextLayout(col) && this.isTextEditable(col)) {
+                const val2 = textarea2.value || '';
+                textarea2.setSelectionRange(val2.length, val2.length);
+              }
+            }
+          } catch (e) { /* ignore */ }
+        }
+      } catch (e) {
+        // ignore focus failures
+      }
+    },
+    
+    // Detect if column renderLayout is TEXT (layout tokens like "TEXT EDIT" or "TEXT NOEDIT")
+    isTextLayout(col) {
+      if (!col || !col.renderLayout) return false;
+      return String(col.renderLayout || '').trim().toUpperCase().startsWith('TEXT');
+    },
+    // Detect if TEXT should be editable: check token "EDIT" presence (case-insensitive)
+    isTextEditable(col) {
+      if (!col || !col.renderLayout) return false;
+      return /\bEDIT\b/i.test(String(col.renderLayout || ''));
+    },
+
+    // Called when editable field blur: compare with snapshot and save if changed
+    async onEditableCellBlur(item, col) {
+      // defensive: ensure snapshot storage exists (fixes _cellOriginalContent undefined errors)
+      if (!this._cellOriginalContent || typeof this._cellOriginalContent !== 'object') {
+        this._cellOriginalContent = {};
+      }
+
+      try {
+        if (!item || !col) return;
+        const rowId = this.getRowIdFromData(item, -1);
+        const key = `${rowId}::${col.colName}`;
+        // if there was no snapshot (selectCell may not have run), treat original as empty string
+        const original = (this._cellOriginalContent && this._cellOriginalContent[key] != null) ? String(this._cellOriginalContent[key]) : '';
+        if (!this._cellOriginalContent[key]) {
+          console.debug('onEditableCellBlur: no original snapshot for key, assuming empty', { key, rowId, colName: col.colName });
+        }
+
+        const current = item[col.colName] == null ? '' : String(item[col.colName]);
+        if (current !== original) {
+          // update snapshot immediate to avoid duplicate saves
+          this._cellOriginalContent[key] = current;
+          // if this is a report-like row, try to extract idReport, otherwise fallback to itemIdField
+          const reportId = (item.idReport != null) ? item.idReport : (item[this.itemIdField] != null ? item[this.itemIdField] : null);
+          console.log('onEditableCellBlur: content changed, will attempt save', { reportId, colName: col.colName, original, current });
+          if (this.isTextLayout(col) && reportId != null) {
+            await this.saveReport(reportId, current);
+          } else if (typeof this.saveItem === 'function') {
+            // generic save fallback
+            try { this.saveItem(item); } catch (e) { /* ignore */ }
+          }
+        }
+      } catch (e) {
+        console.warn('onEditableCellBlur failed', e);
+      } finally {
+        this.selectedCell = null;
+      }
+    },
+
+    // Save a report by id (adjust endpoint/payload to your backend expectations)
+    async saveReport(idReport, reportText) {
+      if (idReport == null) return;
+      try {
+        const payload = { idReport: idReport, report: reportText };
+        const url = `${API_BASE_URL}/reports/update`;
+        console.log('saveReport: POST', url, payload);
+        const res = await axios.post(url, payload);
+        console.log('saveReport: success', res && res.status, res && res.data);
+        this.$emit('reportSaved', { idReport, report: reportText });
+        return res;
+      } catch (err) {
+        console.error('saveReport failed', err && (err.response ? { status: err.response.status, data: err.response.data } : err));
+        throw err;
+      }
+    },
+
     // adjust all cell textareas so they grow to fit content (up to CSS max-height)
     adjustCellTextareas() {
       this.$nextTick(() => {
@@ -731,10 +998,13 @@ export default {
           break;
         }
         case 'TEXT': {
-          // Render full text inside a non-resizable readonly textarea so users can scroll.
-          // We escape the content to avoid injecting HTML into the textarea.
+          // Render full text inside a textarea. If the layout includes the token "EDIT"
+          // the textarea will be created editable (no readonly attr). Otherwise it will be readonly.
           const content = this.escapeHtml(raw == null ? '' : String(raw));
-          html = `<textarea class="cell-textarea" readonly aria-readonly="true" style="border: none; padding 12px; width: 99%">${content}</textarea>`;
+          const editable = /\bEDIT\b/i.test(fmt || '');
+          // build tag without extra whitespace/newlines (they show up as leading spaces in textarea)
+          html = '<textarea class="cell-textarea"' + (editable ? '' : ' readonly aria-readonly="true"') + '>' + content + '</textarea>';
+
           break;
         }
         default:
@@ -744,7 +1014,7 @@ export default {
       // sanitize and return (allow only img and span with src/alt/class on img)
       return DOMPurify.sanitize(html, {
         ALLOWED_TAGS: ['img', 'span', 'textarea'],
-        ALLOWED_ATTR: ['src', 'alt', 'class', 'style']
+        ALLOWED_ATTR: ['src', 'alt', 'class', 'style', 'readonly', 'aria-readonly']
       });
     },
 
@@ -856,6 +1126,12 @@ export default {
       this.selectedCell = colName;
       this.selectedItem = item;
       this.tableRenderKey++;
+      // snapshot original content for editable cells so we can detect changes on blur
+      try {
+        const rowId = this.getRowIdFromData(item, rowIdx);
+        const key = `${rowId}::${colName}`;
+        this._cellOriginalContent[key] = item && (colName in item) ? (item[colName] == null ? '' : String(item[colName])) : '';
+      } catch (e) { /* ignore */ }
       // Note: per requirement, do NOT emit rowSelected from selectCell
     },
 
@@ -982,7 +1258,6 @@ export default {
     },
 
     async reloadData() {
-      console.log('GenericDataViewer.reloadData called', { page: this.page, element: this.element, filter: this.filter });
 
       if (!this.tableConfig.cliClassName || !this.tableConfig.restModuleName || !this.tableConfig.dataCollectMethod) {
         console.warn('Missing required config fields:', this.tableConfig);
@@ -1074,6 +1349,7 @@ export default {
       }
     },
     deselectRow() { this.selectedRowId = null; this.selectedCell = null; this.selectedItem = null; },
+    // called when GenericCellEditor emits 'saved' (server succeeded)
   },
 
   watch: {
@@ -1286,18 +1562,67 @@ tr.row-selected td {
   background: #DCF8C6 !important;
 }
 
-/* NEW: ensure textarea expands to full cell width and allows wrapping (overrides ellipsis parent) */
-.cell-content textarea.cell-textarea,
-.masterdata-table td .cell-textarea {
+/* Ensure textarea inserted via v-html receives component styles despite scoped CSS:
+   use deep selector so the rule targets the inserted DOM nodes. */
+.cell-content >>> textarea.cell-textarea,
+.masterdata-table td >>> textarea.cell-textarea {
   display: block !important;
   width: 100% !important;
-  min-width: 100% !important;    /* allow flex to shrink/expand correctly */
+  min-width: 0 !important;
   max-width: 100% !important;
-  white-space: pre-wrap !important; /* allow multiline text */
+  white-space: pre-wrap !important;
   word-break: break-word;
-  overflow-y: auto;           /* vertical scrollbar when needed */
+  overflow-y: auto;
   box-sizing: border-box;
-  font-family:Verdana, Geneva, Tahoma, sans-serif;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.2;
+  resize: none !important;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+}
+
+.masterdata-table td >>> textarea.cell-textarea:focus {
+  background: #f8fff6 !important;
+  outline: none;
+}
+
+/* editable cell textarea style */
+.cell-textarea-editable {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none !important;
+  min-height: 4rem;
+  max-height: 40rem;
+  padding: 6px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: #fff !important;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.2;
+  overflow-y: auto;
+}
+
+/* If you prefer highlighting when the cell is selected, add this rule */
+.td-editable .cell-textarea-editable {
+  background: #fff7e6 !important; /* subtle highlight when the cell is active */
+}
+
+/* keep a fallback non-deep rule for non-vhtml cases */
+.cell-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none !important;
+  overflow: auto;
+  min-height: 4rem;
+  max-height: 20rem;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.2;
 }
 
 .cell-content {
@@ -1366,21 +1691,6 @@ tr.row-selected td {
   max-width: 32px;
   max-height: 32px;
   vertical-align: middle;
-}
-
-.cell-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  resize: none !important;
-  overflow: auto;
-  min-height: 4rem;      /* reasonable default height */
-  max-height: 20rem;     /* avoid excessive growth */
-  padding: 6px;
-  border: 0; /* keep cell border only from table */
-  background: transparent;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: 1.2;
 }
 
 .modal-overlay {
