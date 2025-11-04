@@ -74,7 +74,7 @@
                 >
                   <div 
                     v-if="item[col.colName] !== undefined"
-                    class="cell-wrapper"
+                    class="cell-content"
                   >
                     {{ 
                       /* we want to allow the ability of injecting
@@ -92,9 +92,15 @@
                         v-ellipsis="() => getCellTitle(item, col)"
                         style="flex: 1 1 auto; min-width: 0;"
                     >
+                    <!--
                       <div
                         v-if="selectedCell === col.colName && (col.editable || isTextLayout(col) && isTextEditable(col))"
                         style="flex: 1 1 auto; min-width: 0; height: 100%; box-sizing: border-box;"
+                      >
+                    -->
+                      <div
+                        v-if="selectedCell === col.colName && (col.editable || (isTextLayout(col) && isTextEditable(col)))"
+                        class="cell-editor-wrapper"
                       >
                         <GenericCellEditor
                           :value="item[col.colName]"
@@ -124,7 +130,6 @@
                         v-else 
                         class="cell-content" 
                         v-ellipsis="() => getCellTitle(item, col)" 
-                        style="flex: 1 1 auto; min-width: 0;"
                     >
                       <span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box;">
                         {{ item[col.colName] }}
@@ -185,7 +190,7 @@ function applyEllipsis(el) {
   el.style.overflow = 'hidden';
   el.style.textOverflow = 'ellipsis';
   el.style.whiteSpace = 'nowrap';
-  el.style.display = 'block';
+  el.style.display = 'contents';
   el.style.maxWidth = '100%';
   el.style.boxSizing = 'border-box';
 
@@ -1571,9 +1576,21 @@ tr.row-selected td {
   background: #DCF8C6 !important;
 }
 
+.cell-content {
+  display: table-cell;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+
 .cell-content >>> textarea.cell-textarea,
 .masterdata-table td >>> textarea.cell-textarea {
-  display: block !important;
+  /* display: block !important; */
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
@@ -1591,6 +1608,7 @@ tr.row-selected td {
   background: transparent;
 }
 
+
 .masterdata-scroll,
 .masterdata-table-container,
 .masterdata-inner {
@@ -1599,7 +1617,6 @@ tr.row-selected td {
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable both-edges;
 }
-
 
 .col-resizer {
   position: absolute;
@@ -1613,11 +1630,55 @@ tr.row-selected td {
 .col-resizer:hover {
   background: rgba(0,0,0,0.04);
 }
+
 body.col-resizing * {
   user-select: none !important;
   -webkit-user-select: none !important;
   -ms-user-select: none !important;
 }
+
+
+.cell-editor-wrapper {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* make the editor child fill the wrapper */
+.cell-editor-wrapper > * {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 
+  Only force inline-block for simple inline content (span/img). 
+  Do NOT override .cell-content or editor wrapper which must remain flex. 
+*/
+.cell-wrapper > span,
+.cell-wrapper > img,
+.cell-wrapper > svg {
+  display: inline-block;
+  vertical-align: middle !important;
+  height: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure these important containers keep flex behaviour and full height */
+.cell-wrapper > .cell-content,
+.cell-wrapper > .cell-editor-wrapper {
+  display: flex !important;
+  flex-direction: column;
+  width: 100% !important;
+  height: 100%;
+  box-sizing: border-box;
+}
+
 /* ─────────────────────────────────────────────────────────────
    GOAL: keep non-editable cells vertically centered when a peer
    cell in the same row switches to TEXT edit (and grows taller).
@@ -1630,18 +1691,21 @@ body.col-resizing * {
 .masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-content {
   /* assumes .cell-content is already display:flex; flex-direction:column; */
   justify-content: center;       /* vertical centering in a column flex */
+  vertical-align: middle;    /* fallback for non-flex content */
 }
 
 /* If there’s one more inner container, match its vertical centering too.
    We intentionally avoid align-items here to keep left/right text flow. */
 .masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-content > div {
   justify-content: center;       /* vertical centering only */
+  vertical-align: middle;    /* fallback for non-flex content */
 }
 
 /* Selected rows must NOT change vertical behavior for non-editable cells */
 .masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-content,
 .masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-content > div {
   justify-content: center;
+  vertical-align: middle;    /* fallback for non-flex content */
 }
 
 /* Editable cell: allow the editor to start from the top and grow.
@@ -1649,12 +1713,15 @@ body.col-resizing * {
 .masterdata-table td.td-editable > .cell-wrapper {
   /* .cell-wrapper is usually a row flex; stretching prevents cramped editors */
   align-items: stretch;
+  vertical-align: middle;    /* fallback for non-flex content */
 }
 
 .masterdata-table td.td-editable > .cell-wrapper > .cell-content,
 .masterdata-table td.td-editable > .cell-wrapper > .cell-content > div {
   /* keep the editor content anchored at the top */
   justify-content: flex-start;
+  align-items: stretch;
+  vertical-align: middle;    /* fallback for non-flex content */
 }
 
 /* Make typical editors comfortable without affecting column widths

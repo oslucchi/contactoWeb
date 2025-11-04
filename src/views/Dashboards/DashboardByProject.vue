@@ -530,8 +530,8 @@ export default {
 }
 .upper-zone >.projectDescription-block textarea {
   flex: 1 1 auto;
-  min-height: 0;        /* critical in flex children to enable proper shrinking */
-  height: auto;         /* let flex control height */
+  min-height: 0;
+  height: auto;
   resize: none !important;
   overflow: auto;
   display: block;

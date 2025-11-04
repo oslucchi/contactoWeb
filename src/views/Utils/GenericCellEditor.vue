@@ -153,6 +153,7 @@ export default {
 .gce-textarea,
 .gce-input {
   flex: 1 1 auto;
+  height: inherit !important;
   width: 100%;
   box-sizing: border-box;
   font: inherit;
