@@ -74,7 +74,7 @@
                 >
                   <div 
                     v-if="item[col.colName] !== undefined"
-                    style="width: 100%; display: flex; align-items: center; font-family: inherit; font-size: inherit; font-weight: inherit; min-width:0; overflow:hidden;"
+                    class="cell-wrapper"
                   >
                     {{ 
                       /* we want to allow the ability of injecting
@@ -92,7 +92,10 @@
                         v-ellipsis="() => getCellTitle(item, col)"
                         style="flex: 1 1 auto; min-width: 0;"
                     >
-                      <div v-if="selectedCell === col.colName && (col.editable || isTextLayout(col) && isTextEditable(col))">
+                      <div
+                        v-if="selectedCell === col.colName && (col.editable || isTextLayout(col) && isTextEditable(col))"
+                        style="flex: 1 1 auto; min-width: 0; height: 100%; box-sizing: border-box;"
+                      >
                         <GenericCellEditor
                           :value="item[col.colName]"
                           :editable="!!(col.editable || (isTextLayout(col) && isTextEditable(col)))"
@@ -245,6 +248,8 @@ export default {
   data() {
     return {
       // snapshots of original values for editable cells keyed by "<rowId>::<colName>"
+      // snapshot inline style attributes for rows/tds so we can restore after edit
+      _rowStyleSnapshots: {},
       _cellOriginalContent: {},
 
       tableConfig: { table: this.element, columns: [] },
@@ -604,6 +609,12 @@ export default {
       await this.$nextTick();
       const rowElement = this.$el.querySelector(`[data-rowid="${rowId}"]`);
       if (rowElement) {
+        // snapshot inline style attributes for restore later
+        try {
+          const trStyle = rowElement.getAttribute('style');
+          const tdStyles = Array.from(rowElement.children).map(td => td.getAttribute('style'));
+          this._rowStyleSnapshots[rowId] = { trStyle, tdStyles };
+        } catch (e) { /* ignore snapshot failures */ }
         this._rowHeights[rowId] = rowElement.offsetHeight;
       }
       if (this.selectedRowId !== rowId) {
@@ -992,14 +1003,15 @@ export default {
         case 'DATETIME':
         case 'DATE': {
           const formatted = this.formatDate(raw, fmt || 'YY-MM-DD HH:mm');
-          html = `<span>${this.escapeHtml(formatted)}</span>`;
+          // html = `<span>${this.escapeHtml(formatted)}</span>`;
+          html = '<span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box;">' + this.escapeHtml(formatted) + '</span>';
           break;
         }
         case 'NUMBER':
         case 'NUM': {
           const formatted = this.formatNumber(raw, fmt || '0.00');
-          html = `<span style="white-space:nowrap">${this.escapeHtml(formatted)}</span>`;
-          break;
+          // html = `<span style="white-space:nowrap">${this.escapeHtml(formatted)}</span>`;
+          html = '<span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box; white-space:nowrap">' + this.escapeHtml(formatted) + '</span>';          break;
         }
         case 'HTML': {
           // explicit "HTML" type: allow limited HTML but sanitize it
@@ -1017,7 +1029,8 @@ export default {
           break;
         }
         default:
-          html = this.escapeHtml(raw == null ? '' : String(raw));
+          // html = this.escapeHtml(raw == null ? '' : String(raw));
+          html = '<span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box;">' + this.escapeHtml(raw == null ? '' : String(raw)) + '</span>';
       }
 
       // sanitize and return (allow only img and span with src/alt/class on img)
@@ -1388,6 +1401,37 @@ export default {
             if (rowEl && rowEl.offsetHeight) {
               this._rowHeights[prev] = rowEl.offsetHeight;
             }
+
+            // try to restore snapshot inline styles (tr and tds) if any
+            try {
+              const snap = this._rowStyleSnapshots && this._rowStyleSnapshots[prev];
+              if (snap && rowEl) {
+                if (snap.trStyle) rowEl.setAttribute('style', snap.trStyle);
+                else rowEl.removeAttribute('style');
+                const tdNodes = Array.from(rowEl.children || []);
+                (snap.tdStyles || []).forEach((s, i) => {
+                  const td = tdNodes[i];
+                  if (!td) return;
+                  if (s) td.setAttribute('style', s);
+                  else td.removeAttribute('style');
+                });
+                // drop the snapshot once restored
+                delete this._rowStyleSnapshots[prev];
+              }
+            } catch (e) {
+              /* ignore restore errors */
+            }
+            // Ensure any inline style on wrappers/content is cleared or reset so CSS rules apply.
+            try {
+              const wrappers = rowEl.querySelectorAll('.cell-wrapper, .cell-content, .cell-content > div');
+              wrappers.forEach(w => {
+                // remove alignment-only inline styles that can override CSS; keep other inline rules if present
+                if (w && w.style) {
+                  w.style.alignItems = 'center';
+                  w.style.justifyContent = 'center';
+                }
+              });
+            } catch (e) { /* ignore */ }
             if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
           });
         }, 150); // 150ms is conservative; lower if you prefer snappier unlock
@@ -1409,150 +1453,68 @@ export default {
 </script>
 
 <style scoped>
-.action-icons {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-/* this pushes the span to the far right while keeping buttons on the left */
-.action-icons .action-right {
-  margin-left: auto;
-  /* optional styling */
-  font-size: 1.5rem;
-  font-style: 'italic';
-  color: rgb(114, 173, 69);
-  padding-right: 8px;
-}
-.icon {
-  width: 24px;
-  height: 24px;
-  vertical-align: middle;
-}
-
-.generic-data-viewer-root,
-.masterdata-content,
-.masterdata-table-container,
-.masterdata-table-header,
-.masterdata-tbody-scroll {
-  box-sizing: border-box;
-}
-
-/* Outer layout */
-.generic-data-viewer-root,
-.masterdata-content {
-  box-sizing: border-box;
-  height: 100%;
-  width: 100%;
-  min-width: 0;
-  /* allow flex parent to constrain width */
-  ;
-}
+  .action-icons {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  /* this pushes the span to the far right while keeping buttons on the left */
+  .action-icons .action-right {
+    margin-left: auto;
+    /* optional styling */
+    font-size: 1.5rem;
+    font-style: 'italic';
+    color: rgb(114, 173, 69);
+    padding-right: 8px;
+  }
+  .icon {
+    width: 24px;
+    height: 24px;
+    vertical-align: middle;
+  }
 
 .generic-data-viewer-root {
-  height: 100%;
-  /* inherit the section's px height */
   display: flex;
   flex-direction: column;
+  height: 100%; /* require the parent to provide an explicit height */
   min-height: 0;
-  /* allow children to shrink inside flex */
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .masterdata-content {
   position: relative;
-  /* ensure z-index and shadow render correctly */
   z-index: 2;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  height: inherit !important;
   box-sizing: border-box;
-  border: 1px solid rgba(0, 0, 0, 0.6);
   background-clip: padding-box;
-  /* avoid border being overlapped by children */
-}
-
-/* ensure the scrolling element inside the viewer shows a native scrollbar */
-.masterdata-scroll,
-.masterdata-table-container,
-.masterdata-inner {
-  min-height: 0;
-  /* avoid flex overflow issues */
-  overflow-y: auto;
-  /* show vertical scrollbar when needed */
-  -webkit-overflow-scrolling: touch;
-}
-
-/* if the parent section had a border that could overlap, keep the viewer above it */
-.generic-data-viewer-root {
-  /* adjust the actual root class name if different */
-  position: relative;
-  z-index: 2;
-}
-
-/* the scrolling area must contain wide tables and provide its own horizontal scrollbar */
-.masterdata-tbody-scroll,
-.masterdata-table-container,
-.masterdata-scroll {
-  min-width: 0;
-  /* allow container to be sized by parent */
-  overflow-x: auto;
-  /* horizontal scroll when table wider than container */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable both-edges;
 }
 
 .masterdata-table-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  padding: 2px;
-  overflow: hidden;
-  min-width: 0;
-  /* prevent flex shrink */
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  align-items: center;
-}
-
-/* Header stays visible; will follow horizontally via syncHeaderScroll */
-.masterdata-table-header {
-  flex: 0 0 auto;
-  width: 100%;
-  overflow: hidden;
-  min-width: 0;
-  will-change: transform;
-  display: flex;
-  justify-content: center;
-}
-
-/* tbody is the scroll region for both axes */
-.masterdata-tbody-scroll {
   flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable both-edges;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  min-height: 0;     /* critical for flex children to allow internal scrolling */
+  max-height: 100%;
+  overflow: hidden;  /* let inner .masterdata-tbody-scroll handle scrolling */
+  box-sizing: border-box;
+  justify-content: flex-start !important;
 }
 
-/* Table sizing: fill container when narrow, grow when wide (no shrink) */
 .masterdata-table {
-  width: auto;
-  /* do not force 100% stretch; minWidth is controlled inline */
-  min-width: 0;
+  margin: 0 !important;
+  width: max-content;
+  min-width: 100%;
   table-layout: fixed;
   box-sizing: border-box;
   border-collapse: collapse;
-  /* collapsed borders so cells share borders */
 }
 
-/* Cell styling */
 .masterdata-table th,
 .masterdata-table td {
   border: 1px solid #888;
@@ -1571,28 +1533,25 @@ export default {
   cursor: pointer;
 }
 
-.masterdata-table td {
+.masterdata-table-header {
+  flex: 0 0 auto;
+  width: 100%;
   overflow: hidden;
-  position: relative;
+  min-width: 0;
+  will-change: transform;
+  display: flex;
+  justify-content: flex-start !important;
 }
 
-.masterdata-table td > div {
-  height: 100%;
+.masterdata-tbody-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
   display: flex;
-  align-items: stretch;
-  box-sizing: border-box;
-}
-.masterdata-table td div[title]:hover::after {
-  content: attr(title);
-  position: absolute;
-  background: #222;
-  color: #fff;
-  padding: 4px 6px;
-  border-radius: 4px;
-  font-size: 0.85em;
-  white-space: nowrap;
-  transform: translateY(-120%);
-  z-index: 10;
+  justify-content: flex-start !important;
+  align-items: flex-start;
 }
 
 .masterdata-table tbody tr:nth-child(odd) td {
@@ -1612,8 +1571,6 @@ tr.row-selected td {
   background: #DCF8C6 !important;
 }
 
-/* Ensure textarea inserted via v-html receives component styles despite scoped CSS:
-   use deep selector so the rule targets the inserted DOM nodes. */
 .cell-content >>> textarea.cell-textarea,
 .masterdata-table td >>> textarea.cell-textarea {
   display: block !important;
@@ -1634,105 +1591,15 @@ tr.row-selected td {
   background: transparent;
 }
 
-.masterdata-table td >>> textarea.cell-textarea:focus {
-  background: #f8fff6 !important;
-  outline: none;
-}
-
-/* editable cell textarea style */
-.cell-textarea-editable {
-  height: 100%;
-  width: 100%;
-  box-sizing: border-box;
-  resize: none !important;
-  min-height: 4rem;
-  max-height: 40rem;
-  padding: 6px;
-  border: 1px solid rgba(0,0,0,0.12);
-  background: #fff !important;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: 1.2;
+.masterdata-scroll,
+.masterdata-table-container,
+.masterdata-inner {
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
 }
 
-/* If you prefer highlighting when the cell is selected, add this rule */
-.td-editable .cell-textarea-editable {
-  background: #fff7e6 !important; /* subtle highlight when the cell is active */
-}
-
-/* keep a fallback non-deep rule for non-vhtml cases */
-.cell-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  resize: none !important;
-  overflow: auto;
-  min-height: 4rem;
-  max-height: 20rem;
-  padding: 6px;
-  border: 0;
-  background: transparent;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: 1.2;
-}
-
-.cell-content {
-  /* Ellipsis mechanics */
-  height: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-  /* Flex-shrink essentials: let flex sizing control the used width */
-  flex: 1 1 0;
-  width: 0;
-  /* <-- critical: without this, the node keeps content width */
-  min-width: 0;
-  /* allow shrinking below content size */
-  max-width: 100%;
-  box-sizing: border-box;
-  position: relative;
-}
-
-.cell-content > div {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.td-editable {
-  border: 2px solid #1900fd !important;
-}
-
-.table-input {
-  width: 100%;
-  height: 14px;
-  padding: 0;
-  margin: 0;
-  box-sizing: border-box;
-  background: inherit !important;
-  color: inherit;
-  border: none;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  vertical-align: middle;
-  outline: none;
-}
-
-.table-input:focus {
-  background: #e6f0ff;
-}
-
-.sort-arrow {
-  position: absolute;
-  right: 6px;
-  bottom: 2px;
-  font-size: 1em;
-  color: #222;
-  pointer-events: none;
-}
 
 .col-resizer {
   position: absolute;
@@ -1743,45 +1610,81 @@ tr.row-selected td {
   cursor: col-resize;
   z-index: 10;
 }
+.col-resizer:hover {
+  background: rgba(0,0,0,0.04);
+}
+body.col-resizing * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -ms-user-select: none !important;
+}
+/* ─────────────────────────────────────────────────────────────
+   GOAL: keep non-editable cells vertically centered when a peer
+   cell in the same row switches to TEXT edit (and grows taller).
+   Scope everything under .masterdata-table to avoid global impact.
+   ───────────────────────────────────────────────────────────── */
 
-.cell-icon {
-  width: 32px;
-  height: 32px;
-  max-width: 32px;
-  max-height: 32px;
-  vertical-align: middle;
+/* Non-editable cells: center content vertically inside their own
+   column flex stacks. We do NOT change display or widths here, so
+   existing borders, resizing and HTML formatting stay intact. */
+.masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-content {
+  /* assumes .cell-content is already display:flex; flex-direction:column; */
+  justify-content: center;       /* vertical centering in a column flex */
 }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: center;
+/* If there’s one more inner container, match its vertical centering too.
+   We intentionally avoid align-items here to keep left/right text flow. */
+.masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-content > div {
+  justify-content: center;       /* vertical centering only */
+}
+
+/* Selected rows must NOT change vertical behavior for non-editable cells */
+.masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-content,
+.masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-content > div {
   justify-content: center;
-  z-index: 2000;
 }
 
-.modal-content {
-  background: #fff;
-  padding: 24px;
-  border-radius: 8px;
-  min-width: 320px;
-  max-width: 90vw;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
-  position: relative;
+/* Editable cell: allow the editor to start from the top and grow.
+   We only nudge alignment within the editable cell, not neighbors. */
+.masterdata-table td.td-editable > .cell-wrapper {
+  /* .cell-wrapper is usually a row flex; stretching prevents cramped editors */
+  align-items: stretch;
 }
 
-.modal-close {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  background: transparent;
-  border: none;
-  font-size: 1.2em;
-  cursor: pointer;
+.masterdata-table td.td-editable > .cell-wrapper > .cell-content,
+.masterdata-table td.td-editable > .cell-wrapper > .cell-content > div {
+  /* keep the editor content anchored at the top */
+  justify-content: flex-start;
+}
+
+/* Make typical editors comfortable without affecting column widths
+   or headers. Widths remain auto/your existing rules; we just ensure
+   editors don’t clip. */
+.masterdata-table td.td-editable textarea,
+.masterdata-table td.td-editable input[type="text"],
+.masterdata-table td.td-editable input[type="number"],
+.masterdata-table td.td-editable input[type="search"],
+.masterdata-table td.td-editable .v-text-field,
+.masterdata-table td.td-editable .el-input,
+.masterdata-table td.td-editable .q-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.25rem;
+}
+
+/* Multiline comfort only for textarea in the editing cell */
+.masterdata-table td.td-editable textarea {
+  min-height: 4.5rem;
+  line-height: 1.35;
+  resize: vertical;
+}
+
+/* Safety: icons/images shouldn’t shift baselines; keep them tidy
+   without touching table borders/resize handles. */
+.masterdata-table img,
+.masterdata-table svg {
+  vertical-align: middle;
+  max-width: 100%;
+  height: auto;
 }
 </style>

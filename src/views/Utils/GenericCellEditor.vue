@@ -150,14 +150,16 @@ export default {
 </script>
 
 <style scoped>
-.gce-textarea, .gce-input {
+.gce-textarea,
+.gce-input {
+  flex: 1 1 auto;
   width: 100%;
   box-sizing: border-box;
   font: inherit;
   resize: none;
   padding: 6px;
   height: auto !important;
-  min-height: inherit !important;
+  min-height: 0 !important;
   line-height: 1.2 !important;
   white-space: pre-wrap !important;
   overflow-y: auto !important;

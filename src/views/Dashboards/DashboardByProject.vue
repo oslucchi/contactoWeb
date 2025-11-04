@@ -1,106 +1,109 @@
 <template>
     <div class="dashboard-layout">
         <div class="upper-zone" ref="upperZone">
+            <!--
             <div class="projects-area" ref ="projectsRelatedData">
-                <!-- Companies -->
-                <section 
-                        ref="projectsSection" 
-                        class="projects-block"
+            -->
+            <section 
+                    ref="projectsSection" 
+                    class="projects-block"
+            >
+                <GenericDataViewer 
+                    ref="projectViewer" 
+                    page="dashboardProjects" 
+                    element="Project" 
+                    :user="userId"
+                    :filter="projectSearchFilter"
+                    :featuresEnabled="[false, false, false, true, true]"
+                    :tableHeight="projectsHeight" 
+                    :containerWidth="mainAreaWidth" 
+                    @rowSelected="onProjectSelected" />
+            </section>
+            <section 
+                    ref="projectDescriptionSection" 
+                    class="projectDescription-block"
+            >
+                <span>
+                    {{ prescriptionTitle }}
+                </span>
+                <textarea
+                        :value="selectedProject ? selectedProject.description : ''"
+                        :placeholder="projectPlaceholder"
                 >
-                    <GenericDataViewer 
-                        ref="projectViewer" 
-                        page="dashboardProjects" 
-                        element="Project" 
-                        :user="userId"
-                        :filter="projectSearchFilter"
-                        :featuresEnabled="[false, false, false, true, true]"
-                        :tableHeight="projectsHeight" 
-                        :containerWidth="mainAreaWidth" 
-                        @rowSelected="onProjectSelected" />
-                </section>
-                <section 
-                        ref="projectDescriptionSection" 
-                        class="projectDescription-block"
-                >
-                    <span>
-                        {{ prescriptionTitle }}
-                    </span>
-                    <textarea
-                            :value="selectedProject ? selectedProject.description : ''"
-                            :placeholder="projectPlaceholder"
-                    >
-                    </textarea>
-                </section>
-                <section 
-                        ref="companiesSection" 
-                        class="companies-block"
-                >
-                    <GenericDataViewer 
-                        ref="companyViewer" 
-                        page="dashboardProjects" 
-                        element="Company" 
-                        :user="userId"
-                        :filter="companySearchFilter"
-                        :featuresEnabled="[false, false, false, true, true]"
-                        :tableHeight="projectsHeight" 
-                        :containerWidth="mainAreaWidth" 
-                        @rowSelected="onCompanySelected" />
-                </section>
-                <section 
-                        ref="personsSection" 
-                        class="persons-block"
-                >
-                    <GenericDataViewer 
-                        ref="personViewer" 
-                        page="dashboardProjects" 
-                        element="Person" 
-                        :user="userId"
-                        :filter="personSearchFilter" 
-                        :featuresEnabled="[false, false, false, true, false]"
-                        :tableHeight="projectsHeight" 
-                        :containerWidth="mainAreaWidth" />
-                </section>
-            </div>
-            <!-- Divider -->
-            <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('upper-zone','lower-zone', $event)"></div>
-            <div class="lower-zone" ref ="lowerZone">
-                <section ref="eventsSection" 
-                     class="events-block"
-                >
-                    <GenericDataViewer 
-                        ref="eventsViewer" 
-                        page="dashboardProjects" 
-                        element="Event" 
-                        :user="userId"
-                        :filter="eventsFilter"
-                        :featuresEnabled="[false, false, false, true, true]"
-                        :tableHeight="eventsHeight" 
-                        :containerWidth="mainAreaWidth" 
-                        @rowSelected="onEventSelected" />
-                </section>
-
-                <section 
-                        ref="reportsSection" 
-                        class="reports-block"
-                >
-                    <GenericDataViewer 
-                        ref="reportsViewer" 
-                        page="dashboardProjects" 
-                        element="Report" 
-                        :user="userId"
-                        :filter="reportsFilter"
-                        :featuresEnabled="[false, false, false, false, false]"
-                        :tableHeight="eventsHeight" 
-                        :containerWidth="mainAreaWidth" 
-                    />
-                    <textarea
-                            :value="selectedReport ? selectedReport.report : ''"
-                            :placeholder="projectPlaceholder"
-                    >
-                    </textarea>
-                </section>
-            </div>
+                </textarea>
+            </section>
+            <section 
+                    ref="companiesSection" 
+                    class="companies-block"
+            >
+                <GenericDataViewer 
+                    ref="companyViewer" 
+                    page="dashboardProjects" 
+                    element="Company" 
+                    :user="userId"
+                    :filter="companySearchFilter"
+                    :featuresEnabled="[false, false, false, true, true]"
+                    :tableHeight="projectsHeight" 
+                    :containerWidth="mainAreaWidth" 
+                    @rowSelected="onCompanySelected" />
+            </section>
+            <section 
+                    ref="personsSection" 
+                    class="persons-block"
+            >
+                <GenericDataViewer 
+                    ref="personViewer" 
+                    page="dashboardProjects" 
+                    element="Person" 
+                    :user="userId"
+                    :filter="personSearchFilter" 
+                    :featuresEnabled="[false, false, false, true, false]"
+                    :tableHeight="projectsHeight" 
+                    :containerWidth="mainAreaWidth" />
+            </section>
         </div>
+        <!-- Divider -->
+        <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('upper-zone','lower-zone', $event)"></div>
+        <div class="lower-zone" ref ="lowerZone">
+            <section ref="eventsSection" 
+                    class="events-block"
+            >
+                <GenericDataViewer 
+                    ref="eventsViewer" 
+                    page="dashboardProjects" 
+                    element="Event" 
+                    :user="userId"
+                    :filter="eventsFilter"
+                    :featuresEnabled="[false, false, false, true, true]"
+                    :tableHeight="eventsHeight" 
+                    :containerWidth="mainAreaWidth" 
+                    @rowSelected="onEventSelected" />
+            </section>
+
+            <section 
+                    ref="reportsSection" 
+                    class="reports-block"
+            >
+                <GenericDataViewer 
+                    ref="reportsViewer" 
+                    page="dashboardProjects" 
+                    element="Report" 
+                    :user="userId"
+                    :filter="reportsFilter"
+                    :featuresEnabled="[false, false, false, false, false]"
+                    :tableHeight="eventsHeight" 
+                    :containerWidth="mainAreaWidth" 
+                />
+                <textarea
+                        :value="selectedReport ? selectedReport.report : ''"
+                        :placeholder="projectPlaceholder"
+                >
+                </textarea>
+            </section>
+        </div>
+<!--
+        </div>
+-->
     </div>
 </template>
 
@@ -467,7 +470,7 @@ export default {
 }
 
 .dashboard-layout {
-    display: flex;
+    display: flex 1 1;
     height: calc(100vh - var(--page-header-height, 100px));
     width: 100%;
     overflow: hidden;
@@ -477,64 +480,47 @@ export default {
 .dashboard-block {
     min-height: 0;
     box-sizing: border-box;
-    /* allow inner viewer to show its own scrollbars — don't create section scrollbars */
     overflow: visible;
 }
 
 .upper-zone {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px;
-    min-height: 0; /* critical for inner scrolling */
-    width: 100%;
-}
-
-.projects-area {
     display: flex;
     gap: 8px;
     min-height: 0;
-    height: 50%;
+    height: 35%;
     width: 100%;
     align-items: stretch;
 }
 
-/* make each top section stretch to container height so changing the container affects them */
-.projects-area > section {
-  height: 100%;
+.upper-zone .top-row-placeholder {
+  height: 35%;
+  min-height: 0;
+}
+
+.upper-zone > .projects-block,
+.upper-zone > .projectDescription-block,
+.upper-zone > .companies-block,
+.upper-zone > .persons-block {
+  display: inline-flex; 
+  align-items: stretch;
   min-height: 0;
   box-sizing: border-box;
+    border: 2px solid rgba(0, 0, 0, 0.25);
 }
 
-/* make each section a flexible child and allow inner scroll/ellipsis */
-.projects-block,
-.companies-block,
-.persons-block {
-  flex: 1 1 0;
-  min-height: 0;
+/* keep the same sizes assigned previously */
+.upper-zone > .projects-block { width: 35% !important; }
+.upper-zone > .companies-block { width: 20% !important; }
+.upper-zone > .persons-block { width: 20% !important; }
+.upper-zone > .projectDescription-block { 
+  display: flex;
+  flex-direction: column; /* stack span and textarea vertically */
+  align-items: stretch;
+  justify-content: flex-start;
   box-sizing: border-box;
-  padding: 2px
+  width: 23% !important;
 }
-
-.projects-block {
-    width:40%
-}
-
-.companies-block {
-    width: 24%
-}
-
-.persons-block {
-    width: 8%
-}
-
-.projectDescription-block {
-    width: 20%;
-    border: 1px solid blue;
-}
-
-.projectDescription-block span {
+.upper-zone >.projectDescription-block span {
     display: block;
     width: 100%;
     text-align: end;
@@ -542,24 +528,20 @@ export default {
     color: rgb(114, 173, 69);
     padding-right: 8px;
 }
-
-.projectDescription-block textarea {
-  width: 100%;
-  height: 100% !important;
-  min-height: 100%;
+.upper-zone >.projectDescription-block textarea {
+  flex: 1 1 auto;
+  min-height: 0;        /* critical in flex children to enable proper shrinking */
+  height: auto;         /* let flex control height */
   resize: none !important;
   overflow: auto;
   display: block;
-    font-size: 1rem;
+  font-size: 1rem;
 
-
-    /* remove textarea chrome so container border is the only visible frame */
+  /* visual adjustments */
   border: none;
   outline: none;
   box-shadow: none;
   background: transparent;
-
-  /* keep spacing and sizing controlled by container */
   padding: 8px;
   box-sizing: border-box;
   border-radius: inherit;
@@ -567,11 +549,11 @@ export default {
 
 .lower-zone {
     display: flex;
-    flex-direction: row;
     gap: 8px;
-    padding: 8px;
     min-height: 0;
+    height: 60%;
     width: 100%;
+    align-items: stretch;
 }
 
 .lower-zone > section {
@@ -581,11 +563,13 @@ export default {
 }
 
 .events-block {
-    width: 25%
+    width: 25%;
+    border: 2px solid rgba(0, 0, 0, 0.25);
 }
 
 .reports-block{
-    width: 75%
+    width: 74%;
+    border: 2px solid rgba(0, 0, 0, 0.25);
 }
 
 .divider {
