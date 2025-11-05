@@ -245,8 +245,8 @@ export default {
     emitOnSelect: { type: [String, Array], default: null },
     // columnsToSearch: { type: Array, default: () => null },
     // searchPlaceholder: { type: String, default: null }
-    _rowHeights:  { type: Array, default: () => [] }, // Store natural row heights
-    _rowHeightLocks: { type: Array, default: () => [] }, // Store row height locks
+    // _rowHeights:  { type: Array, default: () => [] }, // Store natural row heights
+    // _rowHeightLocks: { type: Array, default: () => [] }, // Store row height locks
 
   },
   emits: ['rowSelected'],
@@ -256,7 +256,8 @@ export default {
       // snapshot inline style attributes for rows/tds so we can restore after edit
       _rowStyleSnapshots: {},
       _cellOriginalContent: {},
-
+      _rowHeights: {},
+      _rowHeightLocks: {},
       tableConfig: { table: this.element, columns: [] },
       _itemsSource: [], // original unfiltered records
       items: [],
@@ -282,7 +283,6 @@ export default {
       _externalListeners: [],
 
       _ellipsisScheduledFlag: false,
-
     };
   },
 
@@ -614,13 +614,30 @@ export default {
       await this.$nextTick();
       const rowElement = this.$el.querySelector(`[data-rowid="${rowId}"]`);
       if (rowElement) {
+        // defensive: ensure maps exist and are objects (avoid Vue.set target undefined)
+        if (!this._rowHeights || typeof this._rowHeights !== 'object') 
+        {
+          this._rowHeights = {};
+        }
+
+        if (!this._rowStyleSnapshots || typeof this._rowStyleSnapshots !== 'object') {
+          this._rowStyleSnapshots = {};
+        }
+
         // snapshot inline style attributes for restore later
         try {
           const trStyle = rowElement.getAttribute('style');
           const tdStyles = Array.from(rowElement.children).map(td => td.getAttribute('style'));
           this._rowStyleSnapshots[rowId] = { trStyle, tdStyles };
         } catch (e) { /* ignore snapshot failures */ }
-        this._rowHeights[rowId] = rowElement.offsetHeight;
+        if (this.$set) 
+        {
+          this.$set(this._rowHeights, rowId, rowElement.offsetHeight);
+        }
+        else 
+        {
+          this._rowHeights[rowId] = rowElement.offsetHeight;
+        }
       }
       if (this.selectedRowId !== rowId) {
         // select row first
@@ -1164,16 +1181,18 @@ export default {
 
     getRowStyle(item, rowIdx) {
       const rowId = this.getRowIdFromData(item, rowIdx);
-      const naturalHeight = this._rowHeights[rowId];
-      
+      const heights = (this._rowHeights && typeof this._rowHeights === 'object') ? this._rowHeights : {};
+      const locks = (this._rowHeightLocks && typeof this._rowHeightLocks === 'object') ? this._rowHeightLocks : {};
+      const naturalHeight = (heights && Object.prototype.hasOwnProperty.call(heights, rowId)) ? heights[rowId] : null;
+
       // If this row is being edited and we have a captured height, use it
-      // honor selected row OR a temporary height lock created on deselect
-      if ((this.selectedRowId === rowId || 
-           this._rowHeightLocks[rowId]) && naturalHeight) {
+      if ((this.selectedRowId === rowId || (locks && Object.prototype.hasOwnProperty.call(locks, rowId))) && naturalHeight) {
         return { height: `${naturalHeight}px`, minHeight: `${naturalHeight}px` };
       }
-      
       return {}; // Let the row size naturally
+
+
+
     },
     refreshEllipsis() {
       const runner = (cb) => {
@@ -1394,17 +1413,48 @@ export default {
       this.selectedRowId = null;
       this.selectedCell = null;
       this.selectedItem = null;
+      // defensive: ensure maps exist and are objects (avoid Vue.set target undefined)
+      if (!this._rowHeights || typeof this._rowHeights !== 'object') 
+      {
+        this._rowHeights = {};
+      }
+
+      if (!this._rowStyleSnapshots || typeof this._rowStyleSnapshots !== 'object') {
+        this._rowStyleSnapshots = {};
+      }
       if (prev != null && this._rowHeights && this._rowHeights[prev]) {
         // lock height for a short time to allow re-render and layout to stabilise
-        this._rowHeightLocks[prev] = true;
+        if (this.$set)
+        {
+          this.$set(this._rowHeightLocks, prev, true);
+        } 
+        else 
+        {
+          this._rowHeightLocks[prev] = true;
+        }
         // remove lock after a short delay and refresh ellipsis/textarea heights
         setTimeout(() => {
-          delete this._rowHeightLocks[prev];
+          if (this.$delete)
+          {
+            this.$delete(this._rowHeightLocks, prev);
+          } 
+          else 
+          {
+            delete this._rowHeightLocks[prev];
+          }
           // optionally recompute a fresh measured height for the new content
           this.$nextTick(() => {
             const rowEl = this.$el && this.$el.querySelector(`[data-rowid="${prev}"]`);
             if (rowEl && rowEl.offsetHeight) {
-              this._rowHeights[prev] = rowEl.offsetHeight;
+              if (this.$set)
+              {
+                this.$set(this._rowHeightLocks, prev, rowEl.offsetHeight);
+              } 
+              else 
+              {
+                this._rowHeightLocks[prev] = rowEl.offsetHeight;
+              }
+              // this._rowHeights[prev] = rowEl.offsetHeight;
             }
 
             // try to restore snapshot inline styles (tr and tds) if any
