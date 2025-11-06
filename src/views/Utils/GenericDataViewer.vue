@@ -93,16 +93,10 @@
                         v-if="col.renderLayout && 
                               String(col.renderLayout).trim() !== '' && 
                               hasValue(item, col)"
-                        class="cell-content"
+                        class="cell-inner"
                         v-ellipsis="() => getCellTitle(item, col)"
                         style="flex: 1 1 auto; min-width: 0;"
                     >
-                    <!--
-                      <div
-                        v-if="selectedCell === col.colName && (col.editable || isTextLayout(col) && isTextEditable(col))"
-                        style="flex: 1 1 auto; min-width: 0; height: 100%; box-sizing: border-box;"
-                      >
-                    -->
                       <div
                         v-if="selectedCell === col.colName && (col.editable || (isTextLayout(col) && isTextEditable(col)))"
                         class="cell-editor-wrapper"
@@ -127,6 +121,7 @@
                       </div>
                       <div 
                           v-else 
+                          class="cell-inner-content"
                           :style="mergeCellStyle(item, col)"
                           v-html="renderCellHtml(item, col)">
                       </div>
@@ -289,7 +284,7 @@ export default {
       _rowStyleSnapshots: {},
       _cellOriginalContent: {},
       _rowHeights: {},
-      _rowHeightLocks: {},
+      // _rowHeightLocks: {},
       tableConfig: { table: this.element, columns: [] },
       _itemsSource: [], // original unfiltered records
       items: [],
@@ -1221,11 +1216,11 @@ export default {
     getRowStyle(item, rowIdx) {
       const rowId = this.getRowIdFromData(item, rowIdx);
       const heights = (this._rowHeights && typeof this._rowHeights === 'object') ? this._rowHeights : {};
-      const locks = (this._rowHeightLocks && typeof this._rowHeightLocks === 'object') ? this._rowHeightLocks : {};
+      // const locks = (this._rowHeightLocks && typeof this._rowHeightLocks === 'object') ? this._rowHeightLocks : {};
       const naturalHeight = (heights && Object.prototype.hasOwnProperty.call(heights, rowId)) ? heights[rowId] : null;
 
       // If this row is being edited and we have a captured height, use it
-      if ((this.selectedRowId === rowId || (locks && Object.prototype.hasOwnProperty.call(locks, rowId))) && naturalHeight) {
+      if (this.selectedRowId === rowId && naturalHeight) {
         return { height: `${naturalHeight}px`, minHeight: `${naturalHeight}px` };
       }
       return {}; // Let the row size naturally
@@ -1233,24 +1228,6 @@ export default {
 
 
     },
-
-    // refreshEllipsis() {
-    //   const runner = (cb) => {
-    //     if (typeof window.requestIdleCallback === 'function') {
-    //       window.requestIdleCallback(cb, { timeout: 200 });
-    //     } else {
-    //       window.requestAnimationFrame(cb);
-    //     }
-    //   };
-    //   runner(() => {
-    //     if (!this.$el) return;
-    //     const nodes = this.$el.querySelectorAll('.cell-content');
-    //     if (nodes && nodes.length) nodes.forEach(applyEllipsis);
-    //     // also adjust any TEXT textareas after layout settles
-    //     this.adjustCellTextareas();
-
-    //   });
-    // },
 
     syncHeaderScroll(e) {
       const scrollLeft = e.target.scrollLeft;
@@ -1447,94 +1424,106 @@ export default {
         this.reloadData();
       }
     },
+// ...existing code...
     deselectRow() {
-      // keep previous row height locked for a short time to avoid collapse flicker
       const prev = this.selectedRowId;
+
+      // Defensive: capture and pin the current row height immediately to avoid collapse during re-render
+      try {
+        if (prev != null && this.$el) {
+          const immediateRow = this.$el.querySelector(`[data-rowid="${prev}"]`);
+          if (immediateRow && immediateRow.offsetHeight) {
+            const h = immediateRow.offsetHeight;
+            immediateRow.style.height = `${h}px`;
+            if (!this._rowHeights || typeof this._rowHeights !== 'object') this._rowHeights = {};
+            if (this.$set) this.$set(this._rowHeights, prev, h);
+            else this._rowHeights[prev] = h;
+          }
+        }
+      } catch (e) { /* ignore snapshot errors */ }
+
+      // clear selection state
       this.selectedRowId = null;
       this.selectedCell = null;
       this.selectedItem = null;
-      // defensive: ensure maps exist and are objects (avoid Vue.set target undefined)
-      if (!this._rowHeights || typeof this._rowHeights !== 'object') 
-      {
-        this._rowHeights = {};
+
+      // ensure maps exist
+      if (!this._rowHeights || typeof this._rowHeights !== 'object') this._rowHeights = {};
+      if (!this._rowStyleSnapshots || typeof this._rowStyleSnapshots !== 'object') this._rowStyleSnapshots = {};
+
+      // if we have a measured height for the previous row, schedule a short cleanup + restore pass
+      if (prev == null || !this._rowHeights[prev]) {
+        // nothing to do
+        return;
       }
 
-      if (!this._rowStyleSnapshots || typeof this._rowStyleSnapshots !== 'object') {
-        this._rowStyleSnapshots = {};
-      }
-      if (prev != null && this._rowHeights && this._rowHeights[prev]) {
-        // lock height for a short time to allow re-render and layout to stabilise
-        if (this.$set)
-        {
-          this.$set(this._rowHeightLocks, prev, true);
-        } 
-        else 
-        {
-          this._rowHeightLocks[prev] = true;
-        }
-        // remove lock after a short delay and refresh ellipsis/textarea heights
-        setTimeout(() => {
-          if (this.$delete)
-          {
-            this.$delete(this._rowHeightLocks, prev);
-          } 
-          else 
-          {
-            delete this._rowHeightLocks[prev];
-          }
-          // optionally recompute a fresh measured height for the new content
-          this.$nextTick(() => {
-            const rowEl = this.$el && this.$el.querySelector(`[data-rowid="${prev}"]`);
+      setTimeout(() => {
+        // allow Vue to re-render first, then perform restore and cleanup
+        this.$nextTick(() => {
+          const rowEl = this.$el && this.$el.querySelector(`[data-rowid="${prev}"]`);
+
+          // update reactive stored height with the current measured height (fresh)
+          try {
             if (rowEl && rowEl.offsetHeight) {
-              if (this.$set)
-              {
-                this.$set(this._rowHeightLocks, prev, rowEl.offsetHeight);
-              } 
-              else 
-              {
-                this._rowHeightLocks[prev] = rowEl.offsetHeight;
-              }
-              // this._rowHeights[prev] = rowEl.offsetHeight;
+              if (this.$set) this.$set(this._rowHeights, prev, rowEl.offsetHeight);
+              else this._rowHeights[prev] = rowEl.offsetHeight;
             }
+          } catch (e) { /* ignore */ }
 
-            // try to restore snapshot inline styles (tr and tds) if any
-            try {
-              const snap = this._rowStyleSnapshots && this._rowStyleSnapshots[prev];
-              if (snap && rowEl) {
-                if (snap.trStyle) rowEl.setAttribute('style', snap.trStyle);
-                else rowEl.removeAttribute('style');
-                const tdNodes = Array.from(rowEl.children || []);
-                (snap.tdStyles || []).forEach((s, i) => {
-                  const td = tdNodes[i];
-                  if (!td) return;
-                  if (s) td.setAttribute('style', s);
-                  else td.removeAttribute('style');
-                });
-                // drop the snapshot once restored
-                delete this._rowStyleSnapshots[prev];
-              }
-            } catch (e) {
-              /* ignore restore errors */
-            }
-            // Ensure any inline style on wrappers/content is cleared or reset so CSS rules apply.
-            try {
-              const wrappers = rowEl.querySelectorAll('.cell-wrapper, .cell-content, .cell-content > div');
-              wrappers.forEach(w => {
-                // remove alignment-only inline styles that can override CSS; keep other inline rules if present
-                if (w && w.style) {
-                  w.style.alignItems = 'center';
-                  w.style.justifyContent = 'center';
-                }
+          // restore any captured inline styles (tr and tds)
+          try {
+            const snap = this._rowStyleSnapshots && this._rowStyleSnapshots[prev];
+            if (snap && rowEl) {
+              if (snap.trStyle) rowEl.setAttribute('style', snap.trStyle);
+              else rowEl.removeAttribute('style');
+
+              const tdNodes = Array.from(rowEl.children || []);
+              (snap.tdStyles || []).forEach((s, i) => {
+                const td = tdNodes[i];
+                if (!td) return;
+                if (s) td.setAttribute('style', s);
+                else td.removeAttribute('style');
               });
-            } catch (e) { /* ignore */ }
-            if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
-          });
-        }, 150); // 150ms is conservative; lower if you prefer snappier unlock
-      }
-    },
-    // called when GenericCellEditor emits 'saved' (server succeeded)
-  },
 
+              // remove the snapshot reactively if possible
+              if (this.$delete) this.$delete(this._rowStyleSnapshots, prev);
+              else delete this._rowStyleSnapshots[prev];
+            }
+          } catch (e) {
+            /* ignore restore errors */
+          }
+
+          // Clear only alignment-related inline styles left on wrapper elements so CSS rules win.
+          try {
+            const wrappers = rowEl ? rowEl.querySelectorAll('.cell-wrapper, .cell-content, .cell-inner, .cell-inner-content, .cell-content > div, .cell-inner > div') : [];
+            wrappers.forEach(w => {
+              if (w && w.style) {
+                try { if (w.style.removeProperty) w.style.removeProperty('align-items'); else w.style.alignItems = ''; } catch (ex) { /* ignore */ }
+                try { if (w.style.removeProperty) w.style.removeProperty('justify-content'); else w.style.justifyContent = ''; } catch (ex) { /* ignore */ }
+
+                // only remove inline display if it's one of the known temporary values we may have set
+                try {
+                  const d = w.style.display;
+                  if (d === 'block' || d === 'inline-block' || d === 'table-cell') {
+                    if (w.style.removeProperty) w.style.removeProperty('display'); else w.style.display = '';
+                  }
+                } catch (ex) { /* ignore */ }
+              }
+            });
+          } catch (e) { /* ignore */ }
+
+          // Remove the temporary inline height we pinned earlier so the row can size naturally again.
+          try {
+            if (rowEl) rowEl.style.removeProperty('height');
+          } catch (e) { /* ignore */ }
+
+          // Recompute ellipsis / textarea sizes after layout stabilised
+          if (typeof this.refreshEllipsis === 'function') this.refreshEllipsis();
+          this.adjustCellTextareas();
+        });
+      }, 150); // keep short delay to avoid flicker; tune if necessary
+    },
+  },
   watch: {
     tableHeight(newVal) {
       this.$nextTick(() => { if (typeof this.calculateTableDimensions === 'function') this.calculateTableDimensions(); });
@@ -1674,6 +1663,7 @@ tr.row-selected td {
 .cell-content {
   display: flex;
   flex-direction: column;
+/* display: table-cell; */
   min-width: 0;
   width: 100%;
   height: 100%;
@@ -1786,6 +1776,39 @@ body.col-resizing * {
   box-sizing: border-box;
 }
 
+.cell-inner,
+.cell-inner-content {
+  display: block;           /* keep DOM structure visible; inner element will manage layout */
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  min-width: 0;             /* allow shrink for ellipsis */
+}
+
+/* If the inner node contains text/html, it should act as a flex child so vertical centering works */
+.cell-inner > .cell-inner-content,
+.cell-inner-content > .cell-value,
+.cell-inner > .cell-value {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;  /* keep body cells vertically centered by default */
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* When editor is active, the wrapper class should fill the inner area */
+.cell-inner .cell-editor-wrapper,
+.cell-inner-content .cell-editor-wrapper {
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
 
 .header-value,
 .header-value * {
@@ -1810,24 +1833,29 @@ body.col-resizing * {
 /* Non-editable cells: center content vertically inside their own
    column flex stacks. We do NOT change display or widths here, so
    existing borders, resizing and HTML formatting stay intact. */
-.masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-content {
-  /* assumes .cell-content is already display:flex; flex-direction:column; */
-  justify-content: center;       /* vertical centering in a column flex */
-  vertical-align: middle;    /* fallback for non-flex content */
+.masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-content > .cell-inner,
+.masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-content > .cell-inner-content,
+.masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-inner,
+.masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-inner-content {
+  justify-content: center !important;
+  vertical-align: center !important;
 }
+
 
 /* If there’s one more inner container, match its vertical centering too.
    We intentionally avoid align-items here to keep left/right text flow. */
 .masterdata-table td:not(.td-editable) > .cell-wrapper > .cell-content > div {
-  justify-content: center;       /* vertical centering only */
-  vertical-align: middle;    /* fallback for non-flex content */
+  justify-content: center !important;       /* vertical centering in a column flex */
+  vertical-align: center !important;    /* fallback for non-flex content */
 }
 
 /* Selected rows must NOT change vertical behavior for non-editable cells */
-.masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-content,
-.masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-content > div {
+.masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-content > .cell-inner,
+.masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-content > .cell-inner-content,
+.masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-inner,
+.masterdata-table tr.row-selected td:not(.td-editable) > .cell-wrapper > .cell-inner-content {
   justify-content: center;
-  vertical-align: middle;    /* fallback for non-flex content */
+  vertical-align: middle;
 }
 
 /* Editable cell: allow the editor to start from the top and grow.
@@ -1835,7 +1863,6 @@ body.col-resizing * {
 .masterdata-table td.td-editable > .cell-wrapper {
   /* .cell-wrapper is usually a row flex; stretching prevents cramped editors */
   align-items: stretch;
-  vertical-align: middle;    /* fallback for non-flex content */
 }
 
 .masterdata-table td.td-editable > .cell-wrapper > .cell-content,
