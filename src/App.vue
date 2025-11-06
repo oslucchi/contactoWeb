@@ -14,11 +14,7 @@
 
       <div class="header-right">
         <LanguageSelector />
-        <button class="menu-icon" aria-label="Menu">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
+        <HeaderMenu />
       </div>
     </div>
   <!--
@@ -34,11 +30,13 @@
 
 <script>
 import LanguageSelector from '@/components/LanguageSelector.vue'
+import HeaderMenu from './components/HeaderMenu.vue';
 
 export default {
   name: 'contactoWeb',
   components: {
-    LanguageSelector
+    LanguageSelector,
+    HeaderMenu
   },
   computed: {
       pageTitle() {
