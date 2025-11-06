@@ -131,7 +131,7 @@
                         class="cell-content" 
                         v-ellipsis="() => getCellTitle(item, col)" 
                     >
-                      <span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box;">
+                      <span class="cell-value">
                         {{ item[col.colName] }}
                       </span>
                     </div>
@@ -185,41 +185,68 @@ function getClassByName(name) {
   }
 }
 
-function applyEllipsis(el) {
-  // ensure ellipsis css (idempotent)
-  el.style.overflow = 'hidden';
-  el.style.textOverflow = 'ellipsis';
-  el.style.whiteSpace = 'nowrap';
-  el.style.display = 'contents';
-  el.style.maxWidth = '100%';
-  el.style.boxSizing = 'border-box';
+function applyEllipsis(targetEl, thunk) {
+  if (!targetEl) return;
 
-  // measure overflow first (single read)
-  const clientW = el.clientWidth;
-  const scrollW = el.scrollWidth;
-  const isOverflowing = scrollW > clientW;
-
-  // toggle marker class so CSS can show the "..." only for overflowing cells
-  if (isOverflowing) {
-    el.classList.add('is-cropped');
-  } else {
-    el.classList.remove('is-cropped');
+  try {
+    // Do not change parent flex containers' display.
+    // For inline text nodes (span) ensure inline-block so width/ellipsis works.
+    const tag = (targetEl.tagName || '').toLowerCase();
+    if (tag === 'span' || tag === 'img' || tag === 'svg') {
+      targetEl.style.display = 'inline-block';
+    }
+    // ensure ellipsis css (idempotent)
+    targetEl.style.overflow = 'hidden';
+    targetEl.style.textOverflow = 'ellipsis';
+    targetEl.style.whiteSpace = 'nowrap';
+    // targetEl.style.display = 'contents';
+    targetEl.style.maxWidth = '100%';
+    targetEl.style.boxSizing = 'border-box';
+  } 
+  catch (e) {
+    // defensive: do not break rendering
   }
 
+  // measure overflow first (single read)
+  const clientW = targetEl.clientWidth;
+  const scrollW = targetEl.scrollWidth;
+  const isOverflowing = scrollW > clientW;
+
   if (isOverflowing) {
+    // toggle marker class so CSS can show the "..." only for overflowing cells
+    targetEl.classList.add('is-cropped');
     // compute title lazily only when needed (call thunk or use provided string)
     let titleText = '';
     try {
-      const thunk = (typeof altOrGetter !== 'undefined') ? altOrGetter : _ellipsisThunks.get(el);
-      if (typeof thunk === 'function') titleText = String(thunk() || '').trim();
-      else titleText = (typeof thunk === 'string') ? thunk.trim() : (el.textContent || '').trim();
-    } catch (e) {
-      titleText = (el.textContent || '').trim();
+      if (typeof thunk === 'function') 
+      {
+        titleText = String(thunk() || '').trim();
+      }
+      else if (typeof thunk === 'string') 
+      {
+        titleText = thunk.trim();
+      }
+      else
+      {
+        titleText = (targetEl.textContent || '').trim();
+      }
+    } 
+    catch (e) {
+      titleText = (targetEl.textContent || '').trim();
     }
-    if (titleText) el.setAttribute('title', titleText);
-    else el.removeAttribute('title');
-  } else {
-    el.removeAttribute('title');
+
+    if (titleText)
+    {
+      targetEl.setAttribute('title', titleText);
+    } 
+    else
+    {
+      targetEl.removeAttribute('title');
+    }
+  } 
+  else {
+    targetEl.classList.remove('is-cropped');
+    targetEl.removeAttribute('title');
   }
 
 }
@@ -859,20 +886,27 @@ export default {
       runner(() => {
         _ellipsisScheduled = false;
         if (!this.$el) return;
-        // only select marked elements
-        const nodes = this.$el.querySelectorAll('[data-ellipsis="1"]');
-        if (!nodes || !nodes.length) return;
-        // batch application: avoid layout thrash by doing minimal per-element reads/writes
-        nodes.forEach(el => {
+        // iterate each cell-content and run ellipsis on its inner span/textarea (prefer span.cell-value)
+        // only process nodes that the directive marked (data-ellipsis="1")
+        const cells = this.$el.querySelectorAll('[data-ellipsis="1"]');
+        
+        if (!cells || !cells.length) 
+        {
+          return;
+        }
+
+        cells.forEach(cell => {
           try {
-            const thunk = _ellipsisThunks.get(el);
-            applyEllipsis(el, thunk);
+            const thunk = _ellipsisThunks.get(cell);
+            // prefer inner value span or textarea; fallback to first child
+            const target = cell.querySelector('.cell-value') || cell.querySelector('textarea') || cell.firstElementChild || cell;
+            applyEllipsis(target, thunk);
           } catch (e) {
-            // ignore per-element errors to keep loop robust
-            // console.warn('applyEllipsis failed for node', e);
+            // ignore per-node errors
           }
-          this.adjustCellTextareas();
         });
+        // also adjust any TEXT textareas after layout settles
+        this.adjustCellTextareas();
       });
     },
     
@@ -1026,14 +1060,14 @@ export default {
         case 'DATE': {
           const formatted = this.formatDate(raw, fmt || 'YY-MM-DD HH:mm');
           // html = `<span>${this.escapeHtml(formatted)}</span>`;
-          html = '<span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box;">' + this.escapeHtml(formatted) + '</span>';
+          html = '<span class="cell-value">' + this.escapeHtml(formatted) + '</span>';
           break;
         }
         case 'NUMBER':
         case 'NUM': {
           const formatted = this.formatNumber(raw, fmt || '0.00');
           // html = `<span style="white-space:nowrap">${this.escapeHtml(formatted)}</span>`;
-          html = '<span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box; white-space:nowrap">' + this.escapeHtml(formatted) + '</span>';          break;
+          html = '<span class="cell-value">' + this.escapeHtml(formatted) + '</span>';          break;
         }
         case 'HTML': {
           // explicit "HTML" type: allow limited HTML but sanitize it
@@ -1052,7 +1086,7 @@ export default {
         }
         default:
           // html = this.escapeHtml(raw == null ? '' : String(raw));
-          html = '<span style="display:inline-block; vertical-align:middle; max-width:100%; box-sizing:border-box;">' + this.escapeHtml(raw == null ? '' : String(raw)) + '</span>';
+          html = '<span class="cell-value">' + this.escapeHtml(raw == null ? '' : String(raw)) + '</span>';
       }
 
       // sanitize and return (allow only img and span with src/alt/class on img)
@@ -1194,23 +1228,24 @@ export default {
 
 
     },
-    refreshEllipsis() {
-      const runner = (cb) => {
-        if (typeof window.requestIdleCallback === 'function') {
-          window.requestIdleCallback(cb, { timeout: 200 });
-        } else {
-          window.requestAnimationFrame(cb);
-        }
-      };
-      runner(() => {
-        if (!this.$el) return;
-        const nodes = this.$el.querySelectorAll('.cell-content');
-        if (nodes && nodes.length) nodes.forEach(applyEllipsis);
-        // also adjust any TEXT textareas after layout settles
-        this.adjustCellTextareas();
 
-      });
-    },
+    // refreshEllipsis() {
+    //   const runner = (cb) => {
+    //     if (typeof window.requestIdleCallback === 'function') {
+    //       window.requestIdleCallback(cb, { timeout: 200 });
+    //     } else {
+    //       window.requestAnimationFrame(cb);
+    //     }
+    //   };
+    //   runner(() => {
+    //     if (!this.$el) return;
+    //     const nodes = this.$el.querySelectorAll('.cell-content');
+    //     if (nodes && nodes.length) nodes.forEach(applyEllipsis);
+    //     // also adjust any TEXT textareas after layout settles
+    //     this.adjustCellTextareas();
+
+    //   });
+    // },
 
     syncHeaderScroll(e) {
       const scrollLeft = e.target.scrollLeft;
@@ -1563,7 +1598,7 @@ export default {
 
 .masterdata-table {
   margin: 0 !important;
-  width: max-content;
+  width: 100% !important;
   min-width: 100%;
   table-layout: fixed;
   box-sizing: border-box;
@@ -1579,6 +1614,11 @@ export default {
   vertical-align: middle;
   box-sizing: border-box;
   height: 100%;
+}
+
+.masterdata-table td {
+  overflow: hidden;
+  position: relative;
 }
 
 .masterdata-table th {
@@ -1627,13 +1667,14 @@ tr.row-selected td {
 }
 
 .cell-content {
-  display: table-cell;
+  display: flex;
   flex-direction: column;
   min-width: 0;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
   overflow: hidden;
+  justify-content: center;
   vertical-align: middle;
 }
 
@@ -1726,6 +1767,17 @@ body.col-resizing * {
   flex-direction: column;
   width: 100% !important;
   height: 100%;
+  box-sizing: border-box;
+}
+
+.cell-value {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* vertical-align: middle; */
   box-sizing: border-box;
 }
 
