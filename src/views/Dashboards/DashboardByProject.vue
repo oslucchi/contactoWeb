@@ -345,7 +345,8 @@ export default {
                     typeof evt.currentTarget.setPointerCapture === 'function') {
                     evt.currentTarget.setPointerCapture(evt.pointerId);
                 }
-            } catch (e) { /* ignore */ }
+            } 
+            catch (e) { /* ignore */ }
 
             this._pointerId = evt && evt.pointerId ? evt.pointerId : null;
             this._dragging = true;
