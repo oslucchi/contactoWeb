@@ -39,11 +39,16 @@
               <tr>
                 <th v-for="(col, i) in visibleColumns" :key="col.idColConfigDetail"
                   @click="col.useForSort && handleSort(col.colName)">
-                  {{ col.showName }}
-                  <span v-if="sortColumn === col.colName" class="sort-arrow">{{ sortDirection === 'asc' ? '▲' :
-                    '▼'}}</span>
-                  <span class="col-resizer" @mousedown.stop.prevent="startResize($event, col, i)"
-                    title="Resize column"></span>
+                  <!-- header label: use same ellipsis mechanism as body cells -->
+                  <span class="header-value" v-ellipsis="() => (col && col.showName ? String(col.showName) : '')">
+                    {{ col.showName }}
+                    <span v-if="sortColumn === col.colName" class="sort-arrow">{{ sortDirection === 'asc' ? '▲' :
+                      '▼'}}</span>
+                    <span class="col-resizer" @mousedown.stop.prevent="startResize($event, col, i)"
+                      title="Resize column">
+                    </span>
+                  </span>
+
                 </th>
               </tr>
             </thead>
@@ -1781,6 +1786,21 @@ body.col-resizing * {
   box-sizing: border-box;
 }
 
+
+.header-value,
+.header-value * {
+  box-sizing: border-box;
+}
+.header-value {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+  vertical-align: middle;
+}
 /* ─────────────────────────────────────────────────────────────
    GOAL: keep non-editable cells vertically centered when a peer
    cell in the same row switches to TEXT edit (and grows taller).
