@@ -35,7 +35,18 @@
               :class="{ 'cell-selected': selectedRow === rowIdx && selectedCell === 'company' }"
               @click="selectCell(rowIdx, 'company')"
             >
-              <input v-model="project.company" @change="saveProject(project)" type="text" class="table-input" />
+              <AutocompleteCombo
+                v-if="selectedRow === rowIdx && selectedCell === 'company'"
+                v-model="project.companyObj"
+                table="Companies"
+                :searchColumns="['description']"
+                :displayColumns="['description']"
+                idField="idCompany"
+                labelField="description"
+                placeholder="Type company name..."
+                @select="onCompanySelect(project, $event)"
+              />
+              <span v-else>{{ getCompanyName(project) }}</span>
             </td>
             <td
               class="description"
@@ -90,8 +101,13 @@
 <script>
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
+import AutocompleteCombo from '@/components/AutocompleteCombo.vue';
+import Project from '../../../types/Project';
 
 export default {
+  components: {
+    AutocompleteCombo
+  },
   data() {
     return {
       projects: [],
@@ -104,6 +120,8 @@ export default {
   created() {
     axios.get(`${API_BASE_URL}/projects/getBySubstring?searchFor=`).then(res => {
       this.projects = res.data;
+      // Optionally fetch company details for each project
+      this.enrichProjectsWithCompanyData();
     });
   },
   methods: {
@@ -142,16 +160,10 @@ export default {
         }
       }
     },
+
     addNewProject() {
       // Create a new empty project object (adjust fields as needed)
-      const newProject = {
-        idProject: Date.now(), // or use a proper ID generator
-        company: '',
-        description: '',
-        address: '',
-        created: '',
-        lastUpdate: ''
-      };
+      const newProject = new Project();
       this.projects.push(newProject);
       this.selectedRow = this.projects.length - 1;
       this.selectedCell = 'company';
@@ -159,11 +171,41 @@ export default {
       // Optionally, open the edit modal immediately
       // this.showEditModal = true;
     },
+
     deselectRow() {
       console.log('Deselecting row');
       this.selectedRow = null;
       this.selectedCell = null;
       this.selectedProject = null;
+    },
+    onCompanySelect(project, companyObj) {
+      project.company = companyObj.idCompany;
+      project.companyObj = companyObj;
+      this.saveProject(project);
+    },
+    getCompanyName(project) {
+      if (project.companyObj && project.companyObj.companyName) {
+        return project.companyObj.companyName;
+      }
+      return project.company || '';
+    },
+    async enrichProjectsWithCompanyData() {
+      // Fetch company details for projects that have a company ID
+      const companyIds = [...new Set(this.projects.map(p => p.company).filter(Boolean))];
+      
+      for (const companyId of companyIds) {
+        try {
+          const res = await axios.get(`${API_BASE_URL}/companies/${companyId}`);
+          // Attach company object to all projects with this company ID
+          this.projects.forEach(project => {
+            if (project.company === companyId) {
+              this.$set(project, 'companyObj', res.data);
+            }
+          });
+        } catch (e) {
+          console.error(`Failed to fetch company ${companyId}`, e);
+        }
+      }
     }
   }
 }
@@ -209,8 +251,13 @@ export default {
   background: #e6f0ff;
 }
 .projects-table td.company{
-  width: 120px;
-  max-width: 120px;
+  width: 200px;
+  max-width: 200px;
+  position: relative;
+  padding: 6px 8px;
+}
+.projects-table td.company span {
+  display: block;
 }
 .projects-table td.created,
 .projects-table td.last-update {

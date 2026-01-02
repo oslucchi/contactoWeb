@@ -22,11 +22,12 @@ Vue.use(VueRouter);
 
 const routes = [
   { path: '/', name: 'Home', component: DashboardByProject, meta: { titleKey: 'navigation.dashboardByProject' } },
-  { path: '/persons', component: PersonsList, meta: { titleKey: 'navigation.persons' } },
+
+  { path: '/persons', name: 'MasterPersons', component: PersonsList, meta: { titleKey: 'navigation.persons' } },
   { path: '/persons/new', component: PersonsForm, meta: { titleKey: 'navigation.newPerson' } },
   { path: '/persons/:id', component: PersonsForm, props: true, meta: { titleKey: 'navigation.editPerson' } },
 
-  { path: '/companies', component: CompaniesList, meta: { titleKey: 'navigation.companies' } },
+  { path: '/companies', name: 'MasterCompany', component: CompaniesList, meta: { titleKey: 'navigation.companies' } },
   { path: '/companies/new', component: CompaniesForm, meta: { titleKey: 'navigation.newCompany' } },
   { path: '/companies/:id', component: CompaniesForm, props: true, meta: { titleKey: 'navigation.editCompany' } },
 
@@ -38,19 +39,19 @@ const routes = [
   { path: '/organization/new', component: OrganizationForm, meta: { titleKey: 'navigation.newOrganization' } },
   { path: '/organization/:id', component: OrganizationForm, props: true, meta: { titleKey: 'navigation.editOrganization' } },
 
-  { path: '/employees', component: EmployeesList, meta: { titleKey: 'navigation.employees' } },
+  { path: '/employees', name: 'MasterEmployees', component: EmployeesList, meta: { titleKey: 'navigation.employees' } },
   { path: '/employees/new', component: EmployeesForm, meta: { titleKey: 'navigation.newEmployee' } },
   { path: '/employees/:id', component: EmployeesForm, props: true, meta: { titleKey: 'navigation.editEmployee' } },
 
-  { path: '/projects', component: ProjectsList, meta: { titleKey: 'navigation.projects' } },
+  { path: '/projects', name: 'MasterProjects', component: ProjectsList, meta: { titleKey: 'navigation.projects' } },
   { path: '/projects/new', component: ProjectsForm, meta: { titleKey: 'navigation.newProject' } },
   { path: '/projects/:id', component: ProjectsForm, props: true, meta: { titleKey: 'navigation.editProject' } },
 
-  { path: '/dashboardByCompany', component: DashboardByCompany, meta: { titleKey: 'navigation.dashboardByCompany' } },
-  { path: '/dashboardByProject', component: DashboardByProject, meta: { titleKey: 'navigation.dashboardByProject' } },
-  { path: '/masterDataDashboard', component: DashboardMasterData, meta: { titleKey: 'navigation.dashboardMasterData' } },
+  { path: '/dashboardByCompany', name: 'DashboardByCompany', component: DashboardByCompany, meta: { titleKey: 'navigation.dashboardByCompany' } },
+  { path: '/dashboardByProject', name: 'DashboardByProject', component: DashboardByProject, meta: { titleKey: 'navigation.dashboardByProject' } },
+  { path: '/masterDataDashboard', name: 'DashboardMasterData', component: DashboardMasterData, meta: { titleKey: 'navigation.dashboardMasterData' } },
 
-  { path: '/agenda/schedule', component: AgendaCalendar, props: true, meta: { titleKey: 'navigation.agenda' } },
+  { path: '/agenda/schedule', name: 'MasterEvents', component: AgendaCalendar, props: true, meta: { titleKey: 'navigation.agenda' } },
 ];
 
 const router = new VueRouter({
