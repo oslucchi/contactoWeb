@@ -448,6 +448,7 @@ export default {
           const useInSearch = col && col.useInSearch;
           const name = col && col.showName;
           const colName = col && col.colName;
+          console.log('GenericDataViewer: column', colName, 'useInSearch=', useInSearch);
           if (useInSearch && name && colName) {
             this.searchPlaceholder += sep + String(name).substring(0, 5);
             this.columnsToSearch.push(col.colName);
@@ -810,12 +811,15 @@ export default {
 
     onSearchInput(value) {
       const v = value == null ? '' : String(value).trim();
+      console.log('onSearchInput filtering by term:', v);
       // if less than 3 chars, restore full dataset
       if (v.length < 3) {
-        this.items = Array.isArray(this._itemsSource) ? this._itemsSource.slice() : (Array.isArray(this.items) ? this.items : []);
+        this.items = Array.isArray(this._itemsSource) ? 
+                      this._itemsSource.slice() : 
+                      (Array.isArray(this.items) ? this.items : []);
         return;
       }
-
+      console.log('columnsToSearch:', this.columnsToSearch);
       const term = v.toLowerCase();
       const cols = this.visibleColumns || [];
 

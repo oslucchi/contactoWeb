@@ -3,7 +3,9 @@
         <div class="company-data">
             <div class="companies-and-events" ref ="companiesAndEvents">
                 <!-- Companies -->
-                <section ref="companiesSection" class="dashboard-block companies-block"
+                <section 
+                    ref="companiesSection" 
+                    class="dashboard-block companies-block"
                 >
                     <GenericDataViewer 
                         ref="companyViewer" 
@@ -14,13 +16,12 @@
                         :featuresEnabled="[false, false, false, true, true]"
                         :tableHeight="companiesHeight" 
                         :containerWidth="mainAreaWidth" 
-                        :columnsToSearch="['description', 'segment']"
-                        :searchPlaceholder="'Azienda/Segmento (3+ chars)'"
                         @rowSelected="onCompanySelected" />
                 </section>
                 <!-- Events -->
-                <section ref="eventsSection" 
-                     class="dashboard-block events-block"
+                <section 
+                    ref="eventsSection" 
+                    class="dashboard-block events-block"
                 >
                     <GenericDataViewer 
                         ref="eventsViewer" 
@@ -30,9 +31,7 @@
                         :filter="companyFilter"
                         :featuresEnabled="[false, false, false, true, true]"
                         :tableHeight="eventsHeight" 
-                        :containerWidth="eventAreaWidth" 
-                        :columnsToSearch="['title']"
-                        :searchPlaceholder="'Titolo (3+ chars)'"
+                        :containerWidth="eventAreaWidth"
                         @rowSelected="onEventSelected" />
                 </section>
             </div>
@@ -41,8 +40,11 @@
             <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('companiesAndEvents','branchesSection', $event)"></div>
 
             <!-- Branches -->
-            <section ref="branchesSection" class="dashboard-block branches-block"
-                :style="{ height: branchesHeight + 'px' }">
+            <section 
+                ref="branchesSection" 
+                class="dashboard-block branches-block"
+                :style="{ height: branchesHeight + 'px' }"
+            >
                 <GenericDataViewer 
                     ref="branchViewer" 
                     page="dashboard" 
@@ -59,8 +61,11 @@
             <div class="divider" ref="divider2" @pointerdown.prevent="startDrag('branchesSection','personsSection', $event)"></div>
 
             <!-- Persons -->
-            <section ref="personsSection" class="dashboard-block persons-block"
-                :style="{ height: personsHeight + 'px' }">
+            <section 
+                ref="personsSection" 
+                class="dashboard-block persons-block"
+                :style="{ height: personsHeight + 'px' }"
+            >
                 <GenericDataViewer 
                     ref="personViewer" 
                     page="dashboard" 
@@ -69,18 +74,19 @@
                     :filter="companyFilter" 
                     :featuresEnabled="[false, false, false, true, false]"
                     :tableHeight="personsHeight" 
-                    :containerWidth="mainAreaWidth" 
-                    :columnsToSearch="['familyName', 'firstName']"
-                    :searchPlaceholder="'Cognome/Nome (3+ chars)'"
+                    :containerWidth="mainAreaWidth"
                     @rowSelected="onPersonSelected" />
             </section>
         </div>
         <div ref="sidebar" 
              class="sidebar" 
-             :style="sidebarWidth !== null ? { width: sidebarWidth + 'px' } : {}">
-            <section ref="reportsSection" 
+             :style="sidebarWidth !== null ? { width: sidebarWidth + 'px' } : {}"
+        >
+            <section 
+            ref="reportsSection" 
                      class="dashboard-block reports-block"
-                     :style="{ width: sidebarWidth + 'px', padding: '8px', height: '35%' }">
+                     :style="{ width: sidebarWidth + 'px', padding: '8px', height: '35%' }"
+            >
                 <GenericDataViewer 
                     ref="reportsViewer" 
                     page="dashboard" 
@@ -92,9 +98,11 @@
                     :containerWidth="eventAreaWidth" 
                     @rowSelected="onReportSelected" />
             </section>
-            <section ref="reportDetails" 
-                     class="dashboard-block reports-block"
-                     :style="{ width: sidebarWidth + 'px', padding: '8px' }">
+            <section 
+                ref="reportDetails" 
+                class="dashboard-block reports-block"
+                :style="{ width: sidebarWidth + 'px', padding: '8px' }"
+            >
                 <div v-if="selectedReport" style="width: 100%; height: 100%;">
                     <h3 style="color: rgb(114, 173, 69);">Details</h3>
                     <div v-if="selectedEvent" style="width: 100%; height: 100%;">

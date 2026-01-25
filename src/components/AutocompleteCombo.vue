@@ -117,13 +117,14 @@ export default {
     async fetchResults() {
       this.isLoading = true;
       try {
+        const payload = {
+          searchFor: this.searchText,
+          searchTable: this.table,
+          searchColumns: this.searchColumns
+        };
         const res = await axios.post(
             `${API_BASE_URL}/utility/searchBox`,
-            {
-                searchFor: this.searchText,
-                searchTable: this.table,
-                searchColumns: this.searchColumns
-            }
+            payload
         );
         this.results = res.data || [];
         this.showDropdown = true;
@@ -191,19 +192,21 @@ export default {
 .autocomplete-input {
   width: 100%;
   box-sizing: border-box;
-  padding: inherit;
+  padding: 8px 12px;
   background: #fff;
-  border: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
   outline: none;
   font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  color: inherit;
+  line-height: 1.5;
+  color: #333;
   margin: 0;
 }
 
 .autocomplete-input:focus {
-  background: #e6f0ff;
+  border-color: #4CAF50;
+  background: #fff;
 }
 
 .autocomplete-dropdown {
@@ -213,22 +216,24 @@ export default {
   right: 0;
   background: #fff;
   border: 1px solid #0288d1;
+  border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 1000;
-  max-height: 200px;
+  z-index: 2000;
+  max-height: 320px;
   overflow-y: auto;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .dropdown-item {
-  padding: 6px 8px;
+  padding: 5px 10px;
   cursor: pointer;
   border-bottom: 1px solid #eee;
   display: flex;
-  gap: 8px;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.3;
+  min-height: 22px;
+  align-items: center;
 }
 
 .dropdown-item:last-child {

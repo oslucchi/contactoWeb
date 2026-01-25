@@ -2,6 +2,11 @@
 <template>
   <div>
     <h2>Agenda</h2>
+    <div class="action-icons">
+      <button @click="openAddEventModal">
+        <img src="@/assets/icons/add.png" alt="Add" class="icon" />
+      </button>
+    </div>
     <div class="calendar">
       <div class="calendar-header">
         <button @click="prevMonth">&lt;</button>
@@ -12,7 +17,7 @@
         <!-- Days of week header -->
         <div class="calendar-day" v-for="day in daysOfWeek" :key="day">{{ day }}</div>
         <!-- Calendar cells -->
-        <div v-for="cell in calendarCells" :key="cell.date + '-' + cell.day" class="calendar-cell">
+        <div v-for="(cell, index) in calendarCells" :key="'cell-' + index" class="calendar-cell">
           <div class="cell-date">{{ cell.day }}</div>
           <div
             v-for="event in cell.events"
@@ -37,7 +42,6 @@
         </div>
       </div>
     </div>
-    <button @click="openAddEventModal">Aggiungi Evento</button>
 
     <!-- Modals -->
     <EventDetailsModal
@@ -57,7 +61,7 @@
       @close="closeEditEventModal"
       @save="saveEvent"
     />
-    <CancelEventModal
+    <EventCancelModal
       v-if="modalMode === 'cancel'"
       :event="editedEvent"
       @close="closeCancelEventModal"
@@ -74,6 +78,7 @@
 <script>
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
+import { DATE_FORMATS } from '@/config/formatConfig';
 import EventDetailsModal from './EventDetailsModal.vue';
 import EventEditModal from './EventEditModal.vue';
 import ReportDetailsModal from './ReportDetailsModal.vue';
@@ -107,15 +112,15 @@ export default {
       const cells = [];
       let dayOfWeek = firstDay.getDay();
       for (let i = 0; i < dayOfWeek; i++) {
-        cells.push({ date: '', day: '', events: [] });
+        cells.push({ date: '', day: '', events: [], index: `empty-${i}` });
       }
       for (let d = 1; d <= lastDay.getDate(); d++) {
         const cellDate = new Date(this.currentYear, this.currentMonth, d);
-        const cellDateStr = dayjs(cellDate).format('YYYY-MM-DD');
+        const cellDateStr = dayjs(cellDate).format(DATE_FORMATS.CALENDAR_CELL);
         const events = this.events.filter(ev => {
           if (!ev.date) return false;
           // ev.date might be a string or Date
-          const eventDateStr = dayjs(ev.date).format('YYYY-MM-DD');
+          const eventDateStr = dayjs(ev.date).format(DATE_FORMATS.CALENDAR_CELL);
           if (eventDateStr === cellDateStr) {
             console.log(`found an event date ${eventDateStr} coherent with the cell date ${cellDateStr}`);
             return true;
@@ -192,7 +197,7 @@ export default {
     },
     formatDateTime(date) {
       if (!date) return '';
-      return dayjs(date).format('YY/MM/DD HH:mm');
+      return dayjs(date).format(DATE_FORMATS.DISPLAY_DATETIME_SHORT);
     },
     openAddEventModal() {
       this.editedEvent = { owner: 1 };
@@ -215,15 +220,35 @@ export default {
       this.editedEvent = null;
       this.modalMode = null;
     },
-    saveEvent(event) {
-      if (event.idEvent) {
-        const idx = this.events.findIndex(e => e.idEvent === event.idEvent);
-        if (idx !== -1) this.$set(this.events, idx, event);
-      } else {
-        event.idEvent = Date.now();
-        this.events.push(event);
+    async saveEvent(event) {
+      try {
+        let savedEvent;
+        if (event.idEvent) {
+          // Update existing event
+          const res = await axios.put(
+            `${API_BASE_URL}/agenda/event/${event.idEvent}`,
+            event
+          );
+          savedEvent = res.data;
+          const idx = this.events.findIndex(e => e.idEvent === event.idEvent);
+          if (idx !== -1) this.$set(this.events, idx, savedEvent);
+        } else {
+          // Create new event
+          const res = await axios.post(
+            `${API_BASE_URL}/agenda/addEvent`,
+            event
+          );
+          savedEvent = res.data;
+          this.events.push(savedEvent);
+        }
+        this.closeEditEventModal();
+      } catch (error) {
+        let errMsg = "Errore nel salvataggio dell'evento: " +
+          ((error.response && error.response.data && error.response.data.message) ||
+            error.message || error);
+        console.error(errMsg);
+        alert(errMsg);
       }
-      this.closeEditEventModal();
     },
     openCancelEventModal(event) {
       this.editedEvent = { ...event };
@@ -266,33 +291,60 @@ export default {
 
 <style>
 
+h2 {
+  max-width: 95%;
+  width: 95%;
+  margin: 20px auto 10px auto;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
 .calendar {
-  max-width: 700px;
-  margin: 0 auto;
+  max-width: 95%;
+  width: 95%;
+  height: calc(100vh - 280px);
+  display: flex;
+  flex-direction: column;
+  margin: 20px auto;
+  padding: 0 10px;
+  box-sizing: border-box;
 }
 .calendar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+  flex-shrink: 0;
 }
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
+  flex: 1;
+  grid-auto-rows: minmax(0, 1fr);
+  overflow: hidden;
 }
 .calendar-day {
   font-weight: bold;
   text-align: center;
   background: #f0f0f0;
-  padding: 4px 0;
+  padding: 8px 0;
+  flex-shrink: 0;
 }
 .calendar-cell {
-  min-height: 60px;
   border: 1px solid #eee;
-  padding: 2px;
+  padding: 4px;
   position: relative;
   background: #fff;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.cell-date {
+  font-weight: 500;
+  font-size: 0.9em;
+  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 .agenda-list {
   margin: 24px 0;
@@ -301,8 +353,9 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
+  padding: 4px 2px;
   border-bottom: 1px solid #eee;
+  font-size: 0.85em;
 }
 .event-info {
   flex: 1;
@@ -316,11 +369,43 @@ export default {
   text-decoration: line-through;
 }
 .event-date {
-  margin-left: 16px;
+  margin-left: 8px;
   color: #888;
-  font-size: 0.95em;
+  font-size: 0.9em;
 }
 .cancelled {
   opacity: 0.7;
+}
+.action-icons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  max-width: 95%;
+  width: 95%;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+.action-icons button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.action-icons button:hover:not(:disabled) {
+  opacity: 0.7;
+}
+.action-icons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.icon {
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+  display: block;
 }
 </style>

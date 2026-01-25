@@ -24,7 +24,7 @@
           </ul>
         </li>
 
-        <li role="none"><router-link role="menuitem" :to="{ name: 'OtherView' }" @click.native="closeAll">Other view</router-link></li>
+        <li role="none"><router-link role="menuitem" :to="{ name: 'Other link' }" @click.native="closeAll">Other link</router-link></li>
       </ul>
     </div>
   </nav>
