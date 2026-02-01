@@ -7,7 +7,9 @@ export default class Company {
         description = '',
         segment = '',
         branches = [],
-        roleInProject = ""
+        roleInProject = "",
+        lastEventDate = null,
+        lastReportDate = null
     } = {}) {
         this.idCompany = idCompany;
         this.idSegment = idSegment;
@@ -15,5 +17,7 @@ export default class Company {
         this.segment = segment;
         this.branches = branches.map(branch => branch instanceof Branch ? branch : new Branch(branch));
         this.roleInProject = roleInProject;
+        this.lastEventDate = lastEventDate;
+        this.lastReportDate = lastReportDate;
     }
 }

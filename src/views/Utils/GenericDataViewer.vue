@@ -9,6 +9,18 @@
             @input="onSearchInput"
           />
         </span>
+        
+        <!-- Multi-select filters -->
+        <FieldMultiSelectFilter
+          v-for="(filterConfig, idx) in filterConfigs"
+          :key="'filter-' + idx"
+          :field-name="filterConfig.fieldName"
+          :items="_itemsSource"
+          :label="filterConfig.label"
+          :initial-values="filterConfig.initialValues"
+          @change="onFilterChange"
+        />
+        
         <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
           <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
         </button>
@@ -78,7 +90,7 @@
                     @focusin.stop="handleCellFocusIn($event, item, rowIdx, col)"
                 >
                   <div 
-                    v-if="item[col.colName] !== undefined"
+                    v-if="hasValue(item, col) || col.renderLayout"
                     class="cell-content"
                   >
                     {{ 
@@ -91,8 +103,7 @@
                     }}
                     <div 
                         v-if="col.renderLayout && 
-                              String(col.renderLayout).trim() !== '' && 
-                              hasValue(item, col)"
+                              String(col.renderLayout).trim() !== ''"
                         class="cell-inner"
                         v-ellipsis="() => getCellTitle(item, col)"
                         style="flex: 1 1 auto; min-width: 0;"
@@ -160,6 +171,7 @@
 <script>
 
 import SearchByString  from '@/components/SearchByString.vue';
+import FieldMultiSelectFilter from '@/components/FieldMultiSelectFilter.vue';
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import ColConfigHeader from '@/types/ColConfigHeader';
@@ -254,7 +266,8 @@ function applyEllipsis(targetEl, thunk) {
 export default {
   name: 'GenericDataViewer',
   components: { 
-    SearchByString, 
+    SearchByString,
+    FieldMultiSelectFilter,
     GenericCellEditor
   },
   props: {
@@ -270,6 +283,8 @@ export default {
     capWidth: { type: Number, default: 0 },
     listenEvents: { type: Array, default: () => [] },
     emitOnSelect: { type: [String, Array], default: null },
+    // Array of filter configurations: [{ fieldName, label?, initialValues? }]
+    filterConfigs: { type: Array, default: () => [] },
     // columnsToSearch: { type: Array, default: () => null },
     // searchPlaceholder: { type: String, default: null }
     // _rowHeights:  { type: Array, default: () => [] }, // Store natural row heights
@@ -310,6 +325,9 @@ export default {
       _externalListeners: [],
 
       _ellipsisScheduledFlag: false,
+      
+      // Active filter selections: { fieldName: [values] }
+      activeFilters: {},
     };
   },
 
@@ -370,9 +388,26 @@ export default {
       return visibleColumns;
     },
 
+    filteredItems() {
+      // Apply active filters from FieldMultiSelectFilter components
+      let filtered = [...this.items];
+      
+      Object.keys(this.activeFilters).forEach(fieldName => {
+        const selectedValues = this.activeFilters[fieldName];
+        if (Array.isArray(selectedValues) && selectedValues.length > 0) {
+          filtered = filtered.filter(item => {
+            const itemValue = item[fieldName];
+            return selectedValues.includes(itemValue);
+          });
+        }
+      });
+      
+      return filtered;
+    },
+    
     sortedItems() {
-      if (!this.sortColumn || !this.sortDirection) return this.items;
-      let sorted = [...this.items];
+      if (!this.sortColumn || !this.sortDirection) return this.filteredItems;
+      let sorted = [...this.filteredItems];
       sorted.sort((a, b) => {
         let valA = a[this.sortColumn] || '';
         let valB = b[this.sortColumn] || '';
@@ -809,6 +844,16 @@ export default {
       });
     },
 
+    onFilterChange({ field, values }) {
+      // Update active filters
+      if (Array.isArray(values) && values.length > 0) {
+        this.$set(this.activeFilters, field, values);
+      } else {
+        this.$delete(this.activeFilters, field);
+      }
+      console.log('Active filters updated:', this.activeFilters);
+    },
+    
     onSearchInput(value) {
       const v = value == null ? '' : String(value).trim();
       console.log('onSearchInput filtering by term:', v);
@@ -918,7 +963,7 @@ export default {
     // strip HTML if needed so tooltip is plain text
     getCellTitle(item, col) {
       const name = this.getCellName(col);
-      let v = name && item ? item[name] : '';
+      let v = name && item ? this.getNestedValue(item, name) : '';
       if (v == null) v = '';
       // if value contains HTML (or renderLayout is HTML), strip tags for tooltip
       if (typeof v === 'string' && /<[^>]+>/.test(v)) {
@@ -935,9 +980,22 @@ export default {
       // if you want to store icon names in a different item field, set col.renderField = 'otherField' in your col config
       return (col && col.renderField) ? col.renderField : (col && col.colName) ? col.colName : null;
     },
+    
+    // Helper: resolve nested field paths using dot notation (e.g., "_meta.eventCount")
+    getNestedValue(obj, path) {
+      if (!path || !obj) return undefined;
+      const keys = String(path).split('.');
+      let value = obj;
+      for (const key of keys) {
+        if (value == null) return undefined;
+        value = value[key];
+      }
+      return value;
+    },
+    
     hasValue(item, col) {
       const name = this.getCellName(col);
-      const v = name && item ? item[name] : undefined;
+      const v = name && item ? this.getNestedValue(item, name) : undefined;
       return v !== null && v !== undefined && v !== '';
     },
 
@@ -950,7 +1008,7 @@ export default {
         return new Date(value < 1e12 ? value * 1000 : value);
       }
       const d = new Date(value);
-      return isFinite(d) ? d : null;
+      return (!isNaN(d.getTime())) ? d : null;
     },
 
     // simple formatter supporting token "YY","YYYY","MM","DD","HH","mm","ss"
@@ -1019,14 +1077,16 @@ export default {
     // helper: cache key for a cell
     _cellCacheKey(item, col) {
       const id = this.getRowIdFromData(item, -1);
-      const val = (item && col && (col.colName in item)) ? item[col.colName] : '';
+      const name = this.getCellName(col);
+      const val = name ? this.getNestedValue(item, name) : '';
       const layout = (col && col.renderLayout) ? String(col.renderLayout) : '';
       return `${id}::${col ? col.colName : ''}::${layout}::${String(val)}`;
     },
 
     // return safe HTML string for a cell (ICON/DATETIME/NUMBER/STRING)
     renderCellHtml(item, col) {
-      const raw = item && col && (col.colName in item) ? item[col.colName] : '';
+      const name = this.getCellName(col);
+      const raw = name ? this.getNestedValue(item, name) : '';
       if (!col || !col.renderLayout) return DOMPurify.sanitize(this.escapeHtml(raw == null ? '' : String(raw)));
       const layoutStr = String(col.renderLayout || '').trim();
       if (!layoutStr) return DOMPurify.sanitize(this.escapeHtml(raw == null ? '' : String(raw)));
@@ -1039,7 +1099,7 @@ export default {
       switch (type) {
         case 'ICON': {
           // use the icon name/value from the item and resolve to a real URL
-          const iconName = item && col && (col.colName in item) ? String(item[col.colName] || '').trim() : '';
+          const iconName = name ? String(this.getNestedValue(item, name) || '').trim() : '';
           if (iconName) {
             const resolved = this.iconSrcFor(iconName);
             const s = this.escapeAttr(resolved);

@@ -16,6 +16,9 @@
                         :featuresEnabled="[false, false, false, true, true]"
                         :tableHeight="companiesHeight" 
                         :containerWidth="mainAreaWidth" 
+                        :filter-configs="[
+                            { fieldName: 'segment', label: 'Segment' }
+                        ]"
                         @rowSelected="onCompanySelected" />
                 </section>
                 <!-- Events -->
