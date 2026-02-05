@@ -79,7 +79,14 @@
       "category": "Categoria",
       "customer": "Cliente",
       "address": "Indirizzo",
-      "none": "Nessuno"
+      "none": "Nessuno",
+      "date": "Data"
+    },
+    "forms": {
+      "createEvent": "Crea Evento",
+      "editEvent": "Modifica Evento",
+      "createReport": "Crea Report",
+      "editReport": "Modifica Report"
     }
   },
   "events": {

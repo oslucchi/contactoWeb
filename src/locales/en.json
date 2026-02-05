@@ -79,7 +79,14 @@
       "category": "Category",
       "customer": "Customer",
       "address": "Address",
-      "none": "None"
+      "none": "None",
+      "date": "Date"
+    },
+    "forms": {
+      "createEvent": "Create Event",
+      "editEvent": "Edit Event",
+      "createReport": "Create Report",
+      "editReport": "Edit Report"
     }
   },
   "events": {

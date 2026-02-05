@@ -417,6 +417,7 @@ export default {
       });
       return sorted;
     },
+
     itemIdField() {
       // Prefer an explicit primary key declared on tableConfig.
       if (this.tableConfig) {
@@ -428,6 +429,7 @@ export default {
       if (!idCol) idCol = this.tableConfig.columns.find(col => col.position === 0);
       return idCol ? idCol.colName : null;
     },
+    
     showTitle() {
       if (!this.tableConfig || !this.tableConfig.showTitle) return '';
         return this.tableConfig.showTitle;
@@ -1462,24 +1464,19 @@ export default {
     deleteSelectedRow() {
       if (this.selectedRowId !== null) {
         const item = this.items.find(item => this.getRowIdFromData(item) === this.selectedRowId);
-        if (confirm(`Delete ${this.tableConfig.element} ${item[this.visibleColumns[0].colName]}?`)) {
-          axios.delete(`${API_BASE_URL}/${this.tableConfig.restModuleName}/${item[this.itemIdField]}`).then(() => {
-            this.items = this.items.filter(i => this.getRowIdFromData(i) !== this.selectedRowId);
-            this.selectedRowId = null;
-            this.selectedCell = null;
-            this.selectedItem = null;
-          });
-        }
+        this.$emit('deleteItem', { 
+          item, 
+          rowId: this.selectedRowId,
+          itemIdField: this.itemIdField,
+          tableConfig: this.tableConfig 
+        });
       }
     },
-    async addNewItem() {
-      const ClassType = getClassByName(this.tableConfig.cliClassName);
-      const newItem = new ClassType();
-      const res = await axios.post(`${API_BASE_URL}/${this.tableConfig.restModuleName}/create`, newItem);
-      this.items.push(res.data);
-      this.selectedRowId = this.getRowIdFromData(res.data, this.items.length - 1);
-      this.selectedCell = this.visibleColumns[0].colName;
-      this.selectedItem = res.data;
+    addNewItem() {
+      this.$emit('addItem', { 
+        tableConfig: this.tableConfig,
+        visibleColumns: this.visibleColumns 
+      });
     },
     searchElements() {
       const searchTerm = prompt('Enter search term:');

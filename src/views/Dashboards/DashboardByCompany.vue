@@ -32,10 +32,12 @@
                         element="Event" 
                         :user="userId"
                         :filter="companyFilter"
-                        :featuresEnabled="[false, false, false, true, true]"
+                        :featuresEnabled="eventFeaturesEnabled"
                         :tableHeight="eventsHeight" 
                         :containerWidth="eventAreaWidth"
-                        @rowSelected="onEventSelected" />
+                        @rowSelected="onEventSelected"
+                        @addItem="onAddEvent"
+                        @deleteItem="onDeleteEvent" />
                 </section>
             </div>
 
@@ -124,17 +126,28 @@
                 </div>
             </section>
         </div>
+        
+        <!-- Generic Entity Editor Modal -->
+        <GenericEntityEditor
+            :show="showEntityModal"
+            :title="entityModalConfig ? entityModalConfig.title : 'Edit Item'"
+            :entity="entityModalConfig ? entityModalConfig.entity : null"
+            :fieldDefinitions="entityModalConfig ? entityModalConfig.fieldDefinitions : null"
+            @save="onEntitySave"
+            @cancel="onEntityCancel"
+        />
     </div>
 </template>
 
 <script>
 import GenericDataViewer from '@/views/Utils/GenericDataViewer.vue';
+import GenericEntityEditor from '@/views/Utils/GenericEntityEditor.vue';
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import dayjs from 'dayjs';
 
 export default {
-    components: { GenericDataViewer },
+    components: { GenericDataViewer, GenericEntityEditor },
     data() {
         return {
             selectedReportOriginalContent: '',
@@ -174,7 +187,17 @@ export default {
             _shrinkTargetName: null,
             _stretchTarget: null,
             _shrinkTarget: null,
+            
+            // Entity editor modal state
+            showEntityModal: false,
+            entityModalConfig: null,
         };
+    },
+    computed: {
+        eventFeaturesEnabled() {
+            // Enable add feature (index 2) only when a company is selected
+            return [false, false, !!this.selectedCompany, true, true];
+        }
     },
     mounted() {
         this._boundHandleResize = this.handleResize.bind(this);
@@ -345,6 +368,148 @@ export default {
                 } else {
                     // revert to original content
                     if (this.selectedReport) this.selectedReport.report = original;
+                }
+            }
+        },
+
+        onAddEvent(payload) {
+            // Store the modal configuration and show it
+            const now = new Date();
+            const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            
+            console.log('onAddEvent - selectedCompany:', this.selectedCompany);
+            
+            // Get the Event class and create a new instance
+            let EventClass = null;
+            try {
+                const mod = require(`@/types/${payload.tableConfig.cliClassName}`);
+                EventClass = (mod && mod.default) ? mod.default : mod;
+            } catch (e) {
+                console.warn(`Could not load class ${payload.tableConfig.cliClassName}, using plain object`, e);
+            }
+            
+            // Create new entity - either class instance or plain object
+            const newEntity = EventClass ? new EventClass() : {};
+            
+            // Set default values
+            const companyId = this.selectedCompany ? this.selectedCompany.idCompany : null;
+            console.log('Setting idCompany to:', companyId);
+            
+            newEntity.idCompany = companyId;
+            newEntity.date = localDateTime;
+            newEntity.duration = null;
+            newEntity.icon = 4;
+            newEntity.description = '';
+            
+            console.log('newEntity after setting defaults:', JSON.stringify(newEntity));
+            
+            this.entityModalConfig = {
+                title: `${this.$t('forms.forms.createEvent')}`,
+                restModuleName: payload.tableConfig.restModuleName,
+                viewerRef: 'eventsViewer',
+                entity: newEntity,
+                // Optional: define specific fields for Event
+                fieldDefinitions: [
+                    { name: 'idCompany', label: this.$t('forms.labels.company'), type: 'number', placeholder: this.$t('forms.placeholders.companyId'), editable: false, visible: false },
+                    { name: 'idEventStatus', label: '', type: 'number;', placeholder: '', editable: false, visible: false, defaultValue: 1 },
+                    { name: 'idEventOutcome', label: '', type: 'number;', placeholder: '', editable: false, visible: false, defaultValue: 1 },
+                    { name: 'date', label: this.$t('forms.labels.date'), type: 'datetime', placeholder: 'Event date', editable: true, visible: true },
+                    { name: 'duration', label: this.$t('forms.labels.duration'), type: 'number', placeholder: 'Event date', editable: true, visible: true },
+                    { 
+                        name: 'idEventCategory', 
+                        label: this.$t('forms.labels.category'),
+                        type: 'icon-select', 
+                        placeholder: this.$t('forms.labels.category'),
+                        defaultValue: 4,
+                        options: [
+                            { fileName: 'iconaBianca.png', value: 4, label: this.$t('forms.labels.none') },
+                            { fileName: 'meetInPerson.png', value: 2, label: 'Meet in Person' },
+                            { fileName: 'dollar.png', value: 5, label: 'Request for quote' },
+                            { fileName: 'phoneCall.png', value: 1, label: 'Phone Call' },
+                            { fileName: 'videoCall.png', value: 3, label: 'Video Call' }
+                        ]
+                    },
+                    { name: 'description', label: this.$t('forms.placeholders.description'), type: 'textarea', placeholder: this.$t('forms.placeholders.description'), rows: 4 },
+                    // Add more fields as needed based on your Event type
+                ]
+            };
+            this.showEntityModal = true;
+        },
+        
+        async onEntitySave(entity) {
+            if (!this.entityModalConfig) return;
+            
+            console.log('onEntitySave - received entity:', JSON.stringify(entity));
+            
+            try {
+                // Clone and normalize the entity for backend
+                const body = JSON.parse(JSON.stringify(entity));
+                
+                console.log('onEntitySave - body after clone:', JSON.stringify(body));
+                
+                // Convert datetime-local format to ISO-8601 for Java backend
+                if (body.date && typeof body.date === 'string') {
+                    const d = new Date(body.date);
+                    if (!isNaN(d.getTime())) {
+                        body.date = d.toISOString(); // Converts to "2026-02-09T10:00:00.000Z"
+                    }
+                }
+                
+                console.log('onEntitySave - body being sent to backend:', JSON.stringify(body));
+                
+                const res = await axios.post(
+                    `${API_BASE_URL}/${this.entityModalConfig.restModuleName}/create`, 
+                    body
+                );
+                
+                // Close modal
+                this.showEntityModal = false;
+                
+                // Refresh the appropriate viewer
+                const viewerRef = this.entityModalConfig.viewerRef;
+                if (viewerRef && this.$refs[viewerRef] && typeof this.$refs[viewerRef].reloadData === 'function') {
+                    await this.$refs[viewerRef].reloadData();
+                }
+
+                console.log('Entity created:', res.data);
+            } catch (e) {
+                console.error('Failed to create entity:', e);
+                alert('Failed to create item. Please try again.');
+            }
+        },
+        
+        onEntityCancel() {
+            this.showEntityModal = false;
+            this.entityModalConfig = null;
+        },
+
+        async onDeleteEvent(payload) {
+            const { item, itemIdField, tableConfig } = payload;
+            let firstColName = 'name';
+            if (payload.tableConfig && this.$refs.eventsViewer && this.$refs.eventsViewer.visibleColumns && this.$refs.eventsViewer.visibleColumns[0]) {
+                firstColName = this.$refs.eventsViewer.visibleColumns[0].colName;
+            }
+            
+            const displayName = item[firstColName] || item.id || 'this item';
+            
+            if (confirm(`Delete ${tableConfig.element} ${displayName}?`)) {
+                try {
+                    await axios.delete(`${API_BASE_URL}/${tableConfig.restModuleName}/${item[itemIdField]}`);
+                    
+                    // Clear selection if this was the selected event
+                    if (this.selectedEvent && item[itemIdField] === this.selectedEvent[itemIdField]) {
+                        this.selectedEvent = null;
+                        this.eventFilter = { id: -1 };
+                        this.selectedReport = null;
+                    }
+                    
+                    // Refresh the events viewer
+                    if (this.$refs.eventsViewer && typeof this.$refs.eventsViewer.reloadData === 'function') {
+                        await this.$refs.eventsViewer.reloadData();
+                    }
+                } catch (e) {
+                    console.error('Failed to delete event:', e);
+                    alert('Failed to delete event. Please try again.');
                 }
             }
         },
