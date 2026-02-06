@@ -80,7 +80,8 @@
       "customer": "Cliente",
       "address": "Indirizzo",
       "none": "Nessuno",
-      "date": "Data"
+      "date": "Data",
+      "title": "Oggetto"
     },
     "forms": {
       "createEvent": "Crea Evento",

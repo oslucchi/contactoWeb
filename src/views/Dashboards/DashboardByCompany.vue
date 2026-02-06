@@ -395,11 +395,15 @@ export default {
             const companyId = this.selectedCompany ? this.selectedCompany.idCompany : null;
             console.log('Setting idCompany to:', companyId);
             
+            newEntity.idOwner = this.userId;
             newEntity.idCompany = companyId;
             newEntity.date = localDateTime;
             newEntity.duration = null;
             newEntity.icon = 4;
             newEntity.description = '';
+            newEntity.idEventStatus = 1;
+            newEntity.idEventOutcome = 1;
+            newEntity.title = '';
             
             console.log('newEntity after setting defaults:', JSON.stringify(newEntity));
             
@@ -411,10 +415,11 @@ export default {
                 // Optional: define specific fields for Event
                 fieldDefinitions: [
                     { name: 'idCompany', label: this.$t('forms.labels.company'), type: 'number', placeholder: this.$t('forms.placeholders.companyId'), editable: false, visible: false },
-                    { name: 'idEventStatus', label: '', type: 'number;', placeholder: '', editable: false, visible: false, defaultValue: 1 },
-                    { name: 'idEventOutcome', label: '', type: 'number;', placeholder: '', editable: false, visible: false, defaultValue: 1 },
+                    { name: 'idEventStatus', label: '', type: 'number', placeholder: '', editable: false, visible: false, defaultValue: 1 },
+                    { name: 'idEventOutcome', label: '', type: 'number', placeholder: '', editable: false, visible: false, defaultValue: 1 },
                     { name: 'date', label: this.$t('forms.labels.date'), type: 'datetime', placeholder: 'Event date', editable: true, visible: true },
                     { name: 'duration', label: this.$t('forms.labels.duration'), type: 'number', placeholder: 'Event date', editable: true, visible: true },
+                    { name: 'title', label: this.$t('forms.labels.title'), type: 'text', placeholder: 'Subject', editable: true, visible: true },
                     { 
                         name: 'idEventCategory', 
                         label: this.$t('forms.labels.category'),
