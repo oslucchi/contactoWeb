@@ -2,6 +2,7 @@ export default class ColConfigDetails {
   constructor({
     idColConfigDetail = 0,
     idColConfigHeader = 0,
+    idUser = 0,
     colName = '',
     showName = '',
     position = 0,
@@ -17,6 +18,7 @@ export default class ColConfigDetails {
   } = {}) {
     this.idColConfigDetail = idColConfigDetail;
     this.idColConfigHeader = idColConfigHeader;
+    this.idUser = idUser;
     this.colName = colName;
     this.showName = showName;
     this.position = position;

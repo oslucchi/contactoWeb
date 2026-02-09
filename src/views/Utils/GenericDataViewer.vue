@@ -1478,7 +1478,7 @@ export default {
             console.log(`changedAttributes ${changedAttributes}`);
           }
         });
-
+        col.idUser = this.userId || 0;
         const payload = {
           column: col,
           changedAttributes: changedAttributes // array of attribute names that actually changed
