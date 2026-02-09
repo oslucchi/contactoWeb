@@ -79,7 +79,10 @@
                 v-for="(item, rowIdx) in sortedItems" 
                 :key="getRowIdFromData(item, rowIdx)"
                 :data-rowid="getRowIdFromData(item, rowIdx)"
-                :class="{ 'row-selected': selectedRowId === getRowIdFromData(item, rowIdx) }"
+                :class="{ 
+                  'row-selected': selectedRowId === getRowIdFromData(item, rowIdx),
+                  'row-highlighted': isRowHighlighted(item)
+                }"
                 :style="getRowStyle(item, rowIdx)"
               >
                 <td 
@@ -285,6 +288,8 @@ export default {
     emitOnSelect: { type: [String, Array], default: null },
     // Array of filter configurations: [{ fieldName, label?, initialValues? }]
     filterConfigs: { type: Array, default: () => [] },
+    // Function to determine if a row should be highlighted: (item) => boolean
+    highlightCondition: { type: Function, default: null },
     // columnsToSearch: { type: Array, default: () => null },
     // searchPlaceholder: { type: String, default: null }
     // _rowHeights:  { type: Array, default: () => [] }, // Store natural row heights
@@ -1285,14 +1290,30 @@ export default {
       // const locks = (this._rowHeightLocks && typeof this._rowHeightLocks === 'object') ? this._rowHeightLocks : {};
       const naturalHeight = (heights && Object.prototype.hasOwnProperty.call(heights, rowId)) ? heights[rowId] : null;
 
+      const style = {};
+      
       // If this row is being edited and we have a captured height, use it
       if (this.selectedRowId === rowId && naturalHeight) {
-        return { height: `${naturalHeight}px`, minHeight: `${naturalHeight}px` };
+        style.height = `${naturalHeight}px`;
+        style.minHeight = `${naturalHeight}px`;
       }
-      return {}; // Let the row size naturally
+      
+      return style;
+    },
 
-
-
+    isRowHighlighted(item) {
+      // Check if highlightCondition is provided and returns true
+      if (this.highlightCondition && typeof this.highlightCondition === 'function') {
+        try {
+          const shouldHighlight = this.highlightCondition(item);
+          console.log('[isRowHighlighted] item:', item, 'shouldHighlight:', shouldHighlight);
+          return shouldHighlight;
+        } catch (e) {
+          console.warn('highlightCondition failed:', e);
+          return false;
+        }
+      }
+      return false;
     },
 
     syncHeaderScroll(e) {
@@ -1592,6 +1613,13 @@ export default {
     filter: {
       handler(newFilter) { if (typeof this.reloadData === 'function') this.reloadData(); },
       deep: true
+    },
+    highlightCondition: {
+      handler() {
+        // Force re-render when highlight condition changes
+        this.tableRenderKey++;
+      },
+      deep: false
     }
   }
 };
@@ -1719,6 +1747,18 @@ export default {
 .masterdata-table .row-selected td,
 tr.row-selected td {
   background: #DCF8C6 !important;
+}
+
+.masterdata-table .row-highlighted td,
+tr.row-highlighted td {
+  background: #b8e6a1 !important;
+  font-weight: 500;
+}
+
+/* When a row is both selected and highlighted, selected takes precedence */
+.masterdata-table tr.row-selected.row-highlighted td {
+  background: #DCF8C6 !important;
+  font-weight: 500;
 }
 
 .cell-content {

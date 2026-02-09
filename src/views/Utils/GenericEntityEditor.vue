@@ -94,6 +94,75 @@
               <img :src="getIconPath(getIconFileName(field, localEntity[field.name]))" :alt="getSelectedIconLabel(field, localEntity[field.name])" />
             </div>
           </div>
+
+          <!-- Multi-select table -->
+          <div v-else-if="field.type === 'multi-select-table'" class="multi-select-field">
+            <!-- Selected items display (chips/tags) -->
+            <div v-if="getSelectedItems(field).length > 0" class="selected-items">
+              <span v-for="item in getSelectedItems(field)" 
+                    :key="getItemId(item, field)" 
+                    class="selected-chip">
+                {{ formatItemDisplay(item, field) }}
+                <button @click="removeItem(field, item)" class="remove-btn" type="button">×</button>
+              </span>
+            </div>
+            
+            <!-- Search input -->
+            <input 
+              type="text"
+              v-model="searchQueries[field.name]"
+              :placeholder="field.placeholder || 'Type at least 3 characters to search...'"
+              @input="onSearchInput(field)"
+              class="search-input"
+              :disabled="field.editable === false"
+            />
+            
+            <!-- Results table (shown when search active) -->
+            <div v-if="searchResults[field.name] && searchResults[field.name].length > 0" 
+                 class="results-table-container">
+              <table class="results-table">
+                <thead>
+                  <tr>
+                    <th width="40">Select</th>
+                    <th v-for="col in field.tableConfig.displayColumns" 
+                        :key="col.colName"
+                        :style="col.width ? { width: col.width + 'px' } : {}">
+                      {{ col.label }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in searchResults[field.name]" 
+                      :key="getItemId(item, field)"
+                      @click="toggleItemSelection(field, item)"
+                      class="result-row"
+                      :class="{ 'selected': isItemSelected(field, item) }">
+                    <td class="checkbox-cell">
+                      <input 
+                        type="checkbox" 
+                        :checked="isItemSelected(field, item)"
+                        @click.stop="toggleItemSelection(field, item)"
+                      />
+                    </td>
+                    <td v-for="col in field.tableConfig.displayColumns" :key="col.colName">
+                      {{ item[col.colName] }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Loading/No results messages -->
+            <div v-if="searchLoading[field.name]" class="search-status">
+              Searching...
+            </div>
+            <div v-else-if="searchQueries[field.name] && 
+                            searchQueries[field.name].length >= getMinSearchLength(field) &&
+                            (!searchResults[field.name] || searchResults[field.name].length === 0)"
+                 class="search-status">
+              No results found
+            </div>
+          </div>
           
           <!-- Default to text input -->
           <input
@@ -116,6 +185,9 @@
 </template>
 
 <script>
+import axios from 'axios';
+import { API_BASE_URL } from '@/config/apiConfig';
+
 function getClassByName(name) {
   if (!name) {
     return Object;
@@ -174,7 +246,11 @@ export default {
   },
   data() {
     return {
-      localEntity: {}
+      localEntity: {},
+      searchQueries: {},      // { fieldName: 'searchText' }
+      searchResults: {},      // { fieldName: [results...] }
+      searchLoading: {},      // { fieldName: true/false }
+      searchDebounce: {}      // Debounce timers
     };
   },
   computed: {
@@ -219,12 +295,14 @@ export default {
     show(newVal) {
       if (newVal) {
         this.initializeEntity();
+        this.initializeMultiSelectFields();
       }
     },
     entity: {
       handler() {
         if (this.show) {
           this.initializeEntity();
+          this.initializeMultiSelectFields();
         }
       },
       deep: true
@@ -233,7 +311,16 @@ export default {
   mounted() {
     if (this.show) {
       this.initializeEntity();
+      this.initializeMultiSelectFields();
     }
+  },
+  beforeDestroy() {
+    // Clean up debounce timers
+    Object.keys(this.searchDebounce).forEach(key => {
+      if (this.searchDebounce[key]) {
+        clearTimeout(this.searchDebounce[key]);
+      }
+    });
   },
   methods: {
     initializeEntity() {
@@ -280,6 +367,29 @@ export default {
           });
         }
       }
+    },
+    
+    initializeMultiSelectFields() {
+      if (!this.fieldDefinitions) return;
+      
+      this.fieldDefinitions.forEach(field => {
+        if (field.type === 'multi-select-table') {
+          // Initialize search state for this field
+          if (!this.searchQueries[field.name]) {
+            this.$set(this.searchQueries, field.name, '');
+          }
+          if (!this.searchResults[field.name]) {
+            this.$set(this.searchResults, field.name, []);
+          }
+          if (!this.searchLoading[field.name]) {
+            this.$set(this.searchLoading, field.name, false);
+          }
+          // Ensure localEntity has array
+          if (!Array.isArray(this.localEntity[field.name])) {
+            this.$set(this.localEntity, field.name, []);
+          }
+        }
+      });
     },
     
     formatFieldName(name) {
@@ -365,6 +475,153 @@ export default {
       return `/assets/icons/${encodeURIComponent(iconName)}`;
     },
     
+    // Multi-select table methods
+    getMinSearchLength(field) {
+      return (field.tableConfig && field.tableConfig.minSearchLength) || 3;
+    },
+    
+    onSearchInput(field) {
+      const query = this.searchQueries[field.name];
+      const minLength = this.getMinSearchLength(field);
+      
+      // Clear previous debounce
+      if (this.searchDebounce[field.name]) {
+        clearTimeout(this.searchDebounce[field.name]);
+      }
+      
+      if (query.length < minLength) {
+        this.$set(this.searchResults, field.name, []);
+        return;
+      }
+      
+      // Debounce search
+      this.searchDebounce[field.name] = setTimeout(() => {
+        this.performSearch(field, query);
+      }, 300);
+    },
+    
+    async performSearch(field, query) {
+      this.$set(this.searchLoading, field.name, true);
+      
+      try {
+        let results = [];
+        
+        if (field.dataSource && field.dataSource.items) {
+          // Option A: Local search
+          results = this.searchLocalItems(field, query);
+        } else if (field.dataSource && (field.dataSource.endpoint || field.dataSource.restModuleName)) {
+          // Option B: Remote search
+          results = await this.searchRemoteItems(field, query);
+        }
+        
+        this.$set(this.searchResults, field.name, results);
+      } catch (e) {
+        console.error('Search failed:', e);
+        this.$set(this.searchResults, field.name, []);
+      } finally {
+        this.$set(this.searchLoading, field.name, false);
+      }
+    },
+    
+    searchLocalItems(field, query) {
+      const items = field.dataSource.items || [];
+      const searchableColumns = field.tableConfig.displayColumns
+        .filter(col => col.searchable)
+        .map(col => col.colName);
+      
+      const lowerQuery = query.toLowerCase();
+      
+      return items.filter(item => {
+        return searchableColumns.some(colName => {
+          const value = String(item[colName] || '').toLowerCase();
+          return value.includes(lowerQuery);
+        });
+      }).slice(0, field.tableConfig.maxResults || 20);
+    },
+    
+    async searchRemoteItems(field, query) {
+      const endpoint = field.dataSource.endpoint || 
+                       `${field.dataSource.restModuleName}/getBySubstring`;
+      const searchParam = field.dataSource.searchParam || 'searchFor';
+      
+      console.log('searchRemoteItems - endpoint:', endpoint, 'query:', query);
+      
+      const response = await axios.get(`${API_BASE_URL}/${endpoint}`, {
+        params: {
+          [searchParam]: query,
+          limit: field.tableConfig.maxResults || 20
+        }
+      });
+      
+      console.log('searchRemoteItems - full response:', response);
+      console.log('searchRemoteItems - response.data:', response.data);
+      console.log('searchRemoteItems - typeof response.data:', typeof response.data);
+      
+      // Handle different response structures
+      if (!response.data) {
+        return [];
+      }
+      
+      // If data is already an array, return it
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      
+      // If data has an items property, use that
+      if (response.data.items && Array.isArray(response.data.items)) {
+        return response.data.items;
+      }
+      
+      // Fallback to empty array
+      return [];
+    },
+    
+    toggleItemSelection(field, item) {
+      const idField = field.tableConfig.itemIdField;
+      const selectedItems = this.localEntity[field.name] || [];
+      const itemId = item[idField];
+      
+      const index = selectedItems.findIndex(i => i[idField] === itemId);
+      
+      if (index > -1) {
+        // Remove
+        selectedItems.splice(index, 1);
+      } else {
+        // Add
+        selectedItems.push(item);
+      }
+      
+      this.$set(this.localEntity, field.name, [...selectedItems]);
+    },
+    
+    isItemSelected(field, item) {
+      const idField = field.tableConfig.itemIdField;
+      const selectedItems = this.localEntity[field.name] || [];
+      return selectedItems.some(i => i[idField] === item[idField]);
+    },
+    
+    removeItem(field, item) {
+      const idField = field.tableConfig.itemIdField;
+      const selectedItems = this.localEntity[field.name] || [];
+      const filtered = selectedItems.filter(i => i[idField] !== item[idField]);
+      this.$set(this.localEntity, field.name, filtered);
+    },
+    
+    getSelectedItems(field) {
+      return this.localEntity[field.name] || [];
+    },
+    
+    getItemId(item, field) {
+      const idField = field.tableConfig.itemIdField;
+      return item[idField];
+    },
+    
+    formatItemDisplay(item, field) {
+      // Format display based on first 2-3 columns
+      const cols = field.tableConfig.displayColumns.slice(0, 2);
+      return cols.map(col => item[col.colName]).filter(Boolean).join(' ');
+    },
+    
     onSave() {
       this.$emit('save', this.localEntity);
     },
@@ -393,7 +650,7 @@ export default {
 .modal-content {
   position: relative;
   background: #fff;
-  max-width: 600px;
+  max-width: 700px;
   width: calc(100% - 48px);
   max-height: 80vh;
   border-radius: 8px;
@@ -544,5 +801,146 @@ h3 {
 
 .btn-save:hover {
   background: #5f9237;
+}
+
+/* Multi-select table styles */
+.multi-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selected-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  min-height: 40px;
+}
+
+.selected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #72ad45;
+  color: white;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.selected-chip .remove-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.selected-chip .remove-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.search-input {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #72ad45;
+  box-shadow: 0 0 0 2px rgba(114, 173, 69, 0.1);
+}
+
+.results-table-container {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.results-table thead {
+  position: sticky;
+  top: 0;
+  background: #f5f5f5;
+  z-index: 1;
+}
+
+.results-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #ddd;
+  color: #333;
+}
+
+.results-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.results-table .checkbox-cell {
+  text-align: center;
+  padding: 8px;
+}
+
+.results-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.results-table tbody tr:hover {
+  background: #f9f9f9;
+}
+
+.results-table tbody tr.selected {
+  background: #e8f5e0;
+}
+
+.results-table tbody tr.selected:hover {
+  background: #daf0ce;
+}
+
+.results-table input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.search-status {
+  padding: 12px;
+  text-align: center;
+  color: #666;
+  font-size: 13px;
+  font-style: italic;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f9f9f9;
 }
 </style>

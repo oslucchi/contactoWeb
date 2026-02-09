@@ -81,7 +81,9 @@
       "address": "Indirizzo",
       "none": "Nessuno",
       "date": "Data",
-      "title": "Oggetto"
+      "title": "Oggetto",
+      "summary":"Sommario",
+      "report": "Report"
     },
     "forms": {
       "createEvent": "Crea Evento",

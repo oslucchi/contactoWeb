@@ -97,11 +97,13 @@
                     page="dashboard" 
                     element="Report" 
                     :user="userId"
-                    :filter="eventFilter"
-                    :featuresEnabled="[false, false, false, false, false]"
-                    :tableHeight="eventsHeight" 
-                    :containerWidth="eventAreaWidth" 
-                    @rowSelected="onReportSelected" />
+                    :filter="reportFilter"
+                    :featuresEnabled="reportFeaturesEnabled"
+                    :tableHeight="reportsHeight" 
+                    :containerWidth="eventAreaWidth"
+                    :highlightCondition="reportHighlightCondition"
+                    @rowSelected="onReportSelected"
+                    @addItem="onAddReport" />
             </section>
             <section 
                 ref="reportDetails" 
@@ -159,6 +161,7 @@ export default {
             companyFilter: { id: -1 },
             branchFilter: { id: -1 },
             eventFilter: { id: -1 },
+            reportFilter: { id: -1 },
             selectedEvent: null,
             selectedReport: null,
             
@@ -166,7 +169,7 @@ export default {
             branchesHeight: 100,
             personsHeight: 220,
             eventsHeight: 400,
-            reportsHeigth: 400,
+            reportsHeight: 400,
             eventAreaWidth: 350,
 
             // drag state
@@ -197,6 +200,25 @@ export default {
         eventFeaturesEnabled() {
             // Enable add feature (index 2) only when a company is selected
             return [false, false, !!this.selectedCompany, true, true];
+        },
+        reportFeaturesEnabled() {
+            // Enable add feature (index 2) when a company is selected
+            // Reports can be added for a company with or without an event
+            return [false, false, !!this.selectedCompany, false, false];
+        },
+        reportHighlightCondition() {
+            // Return a function that determines if a report should be highlighted
+            // Highlight reports that match the selected event
+            const selectedEventId = this.selectedEvent ? this.selectedEvent.idEvent : null;
+            console.log('[reportHighlightCondition] selectedEvent:', this.selectedEvent, 'selectedEventId:', selectedEventId);
+            if (!selectedEventId) {
+                return null; // No highlighting if no event is selected
+            }
+            return (report) => {
+                const shouldHighlight = report && report.idEvent === selectedEventId;
+                console.log('[reportHighlightCondition] report.idEvent:', report && report.idEvent, 'selectedEventId:', selectedEventId, 'shouldHighlight:', shouldHighlight);
+                return shouldHighlight;
+            };
         }
     },
     mounted() {
@@ -267,8 +289,11 @@ export default {
 
             if (id) {
                 this.branchFilter = { idCompany: id, companyId: id };
+                // Load all reports for this company (requires backend endpoint)
+                this.reportFilter = { id: id };
             } else {
                 this.branchFilter = { id: -1 };
+                this.reportFilter = { id: -1 };
             }
 
             this.selectedBranch = null;
@@ -283,6 +308,14 @@ export default {
                         this.$refs.personViewer.reloadData();
                     } else if (this.$refs.personViewer && typeof this.$refs.personViewer.calculateTableDimensions === 'function') {
                         this.$refs.personViewer.calculateTableDimensions();
+                    }
+                    // Reload reports to show all reports for the company
+                    if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.reloadData === 'function') {
+                        this.$refs.reportsViewer.reloadData();
+                    }
+                    // Deselect any selected report row
+                    if (this.$refs.reportsViewer) {
+                        this.$refs.reportsViewer.selectedRowId = null;
                     }
                 } catch (e) {
                     console.warn('person refresh failed', e);
@@ -310,9 +343,32 @@ export default {
             this.selectedEvent = payload && payload.item ? payload.item : null;
             this.eventFilter = id ? { id } : { id: -1 };
             this.selectedReport = null;
+            
+            // Auto-select the first report that matches this event
             this.$nextTick(() => {
-                if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.reloadData === 'function') {
-                    this.$refs.reportsViewer.reloadData();
+                if (this.$refs.reportsViewer && this.selectedEvent) {
+                    const reportsViewer = this.$refs.reportsViewer;
+                    const eventId = this.selectedEvent.idEvent;
+                    
+                    // Find first report matching this event
+                    if (reportsViewer.items && Array.isArray(reportsViewer.items)) {
+                        const matchingReport = reportsViewer.items.find(report => report && report.idEvent === eventId);
+                        if (matchingReport) {
+                            // Get the row ID and select it
+                            const rowId = reportsViewer.getRowIdFromData(matchingReport);
+                            if (rowId !== null) {
+                                reportsViewer.selectedRowId = rowId;
+                                this.selectedReport = Object.assign({}, matchingReport);
+                                this.selectedReportOriginalContent = this.selectedReport && this.selectedReport.report != null
+                                    ? String(this.selectedReport.report)
+                                    : '';
+                            }
+                        }
+                    }
+                }
+                
+                if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.calculateTableDimensions === 'function') {
+                    this.$refs.reportsViewer.calculateTableDimensions();
                 }
             });
         },
@@ -374,7 +430,11 @@ export default {
 
         onAddEvent(payload) {
             // Store the modal configuration and show it
-            const now = new Date();
+            const now = new Date(); 
+            now.setMinutes(0);
+            now.setSeconds(0);
+            now.setMilliseconds(0);
+            now.setHours(now.getHours() + 1); // Next hour
             const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
             
             console.log('onAddEvent - selectedCompany:', this.selectedCompany);
@@ -435,7 +495,88 @@ export default {
                         ]
                     },
                     { name: 'description', label: this.$t('forms.placeholders.description'), type: 'textarea', placeholder: this.$t('forms.placeholders.description'), rows: 4 },
-                    // Add more fields as needed based on your Event type
+                    { 
+                        name: 'participants', 
+                        label: this.$t('forms.labels.participants') || 'Participants',
+                        type: 'multi-select-table',
+                        dataSource: {
+                            restModuleName: 'persons',
+                            searchParam: 'searchFor'
+                        },
+                        tableConfig: {
+                            itemIdField: 'idPerson',
+                            displayColumns: [
+                                { colName: 'firstName', label: 'First Name', searchable: true, width: 100 },
+                                { colName: 'familyName', label: 'Last Name', searchable: true, width: 100 },
+                                { colName: 'email', label: 'Email', searchable: true, width: 150 },
+                                { colName: 'company', label: 'Company', searchable: false, width: 120 }
+                            ],
+                            minSearchLength: 3,
+                            maxResults: 15
+                        },
+                        placeholder: 'Type at least 3 characters to search by name or company...',
+                        editable: true,
+                        visible: true
+                    }
+                ]
+            };
+            this.showEntityModal = true;
+        },
+        
+        onAddReport(payload) {
+            // Store the modal configuration and show it
+            const now = new Date();
+            now.setMinutes(0);
+            now.setSeconds(0);
+            now.setMilliseconds(0);
+            now.setHours(now.getHours() + 1); // Next hour
+            const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            
+            console.log('onAddReport - selectedEvent:', this.selectedEvent);
+            
+            // Get the Report class and create a new instance
+            let ReportClass = null;
+            try {
+                const mod = require(`@/types/${payload.tableConfig.cliClassName}`);
+                ReportClass = (mod && mod.default) ? mod.default : mod;
+            } catch (e) {
+                console.warn(`Could not load class ${payload.tableConfig.cliClassName}, using plain object`, e);
+            }
+            
+            // Create new entity - either class instance or plain object
+            const newEntity = ReportClass ? new ReportClass() : {};
+            
+            // Set default values
+            // If an event is selected, link the report to it; otherwise, link only to the company
+            const eventId = this.selectedEvent ? this.selectedEvent.idEvent : null;
+            const companyId = this.selectedCompany ? this.selectedCompany.idCompany : null;
+            console.log('Setting idEvent to:', eventId, 'idCompany to:', companyId);
+            
+            newEntity.idReporter = this.userId;
+            newEntity.idEvent = eventId;
+            newEntity.idCompany = companyId;
+            newEntity.idAgent = this.userId;
+            newEntity.date = localDateTime;
+            newEntity.report = '';
+            newEntity.summary = '';
+            newEntity.archived = false;
+            
+            console.log('newEntity after setting defaults:', JSON.stringify(newEntity));
+            
+            this.entityModalConfig = {
+                title: `${this.$t('forms.forms.createReport') || 'Create Report'}`,
+                restModuleName: payload.tableConfig.restModuleName,
+                viewerRef: 'reportsViewer',
+                entity: newEntity,
+                fieldDefinitions: [
+                    { name: 'idReporter', label: '', type: 'number', placeholder: '', editable: false, visible: false },
+                    { name: 'idEvent', label: '', type: 'number', placeholder: '', editable: false, visible: false },
+                    { name: 'idCompany', label: '', type: 'number', placeholder: '', editable: false, visible: false },
+                    { name: 'idAgent', label: '', type: 'number', placeholder: '', editable: false, visible: false },
+                    { name: 'date', label: this.$t('forms.labels.date') || 'Date', type: 'datetime', placeholder: 'Report date', editable: true, visible: true },
+                    { name: 'summary', label: this.$t('forms.labels.summary') || 'Summary', type: 'text', placeholder: 'Brief summary', editable: true, visible: true },
+                    { name: 'report', label: this.$t('forms.labels.report') || 'Report', type: 'textarea', placeholder: this.$t('forms.placeholders.description') || 'Detailed report', rows: 8, editable: true, visible: true },
+                    { name: 'archived', label: this.$t('forms.labels.archived') || 'Archived', type: 'boolean', editable: true, visible: false }
                 ]
             };
             this.showEntityModal = true;

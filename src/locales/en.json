@@ -81,7 +81,9 @@
       "address": "Address",
       "none": "None",
       "date": "Date",
-      "title": "Subject"
+      "title": "Subject",
+      "summary":"Summary",
+      "report": "Report"
     },
     "forms": {
       "createEvent": "Create Event",
