@@ -21,6 +21,7 @@
 
 <script>
 import GenericDataViewer from '@/views/Utils/GenericDataViewer.vue';
+import { mapGetters } from 'vuex';
 
 export default {
   components: {
@@ -28,12 +29,14 @@ export default {
   },
   data() {
     return {
-      userId: 1,
       searchFilter: { searchFor: '' },
       selectedPerson: null,
       tableHeight: 600,
-      containerWidth: 1200
+      containerWidth: 1400
     };
+  },
+  computed: {
+    ...mapGetters('auth', ['userId']),
   },
   mounted() {
     this.$nextTick(() => {

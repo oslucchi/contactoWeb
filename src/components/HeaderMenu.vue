@@ -25,12 +25,26 @@
         </li>
 
         <li role="none"><router-link role="menuitem" :to="{ name: 'Other link' }" @click.native="closeAll">Other link</router-link></li>
+        
+        <li role="none" class="user-section">
+          <div class="user-info">
+            <span class="user-name">{{ currentUser ? currentUser.username : 'User' }}</span>
+          </div>
+        </li>
+        
+        <li role="none">
+          <button class="logout-btn" @click="handleLogout" role="menuitem">
+            Logout
+          </button>
+        </li>
       </ul>
     </div>
   </nav>
 </template>
 
 <script>
+import { mapGetters, mapActions } from 'vuex';
+
 export default {
   name: 'HeaderMenu',
   data() {
@@ -39,6 +53,9 @@ export default {
       subOpen: { master: false }
     };
   },
+  computed: {
+    ...mapGetters('auth', ['currentUser', 'isAuthenticated'])
+  },
   mounted() {
     document.addEventListener('click', this.handleDocClick);
   },
@@ -46,13 +63,19 @@ export default {
     document.removeEventListener('click', this.handleDocClick);
   },
   methods: {
+    ...mapActions('auth', ['logout']),
     handleDocClick(e) {
       if (!this.$el.contains(e.target)) this.closeAll();
     },
     toggleMenu() { this.open = !this.open; if (!this.open) this.closeAllSubs(); },
     toggleSub(key) { this.$set(this.subOpen, key, !this.subOpen[key]); },
     closeAllSubs() { Object.keys(this.subOpen).forEach(k => this.$set(this.subOpen, k, false)); },
-    closeAll() { this.open = false; this.closeAllSubs(); }
+    closeAll() { this.open = false; this.closeAllSubs(); },
+    async handleLogout() {
+      await this.logout();
+      this.closeAll();
+      this.$router.push({ name: 'Login' });
+    }
   }
 };
 </script>
@@ -100,6 +123,44 @@ export default {
 .sub-list a {
   display:block;
   padding:6px 8px;
+
+.user-section {
+  border-top: 1px solid #e0e0e0;
+  margin-top: 8px;
+  padding-top: 8px !important;
+}
+
+.user-info {
+  padding: 8px 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.logout-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 6px;
+  color: #d32f2f;
+  text-decoration: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.logout-btn:hover {
+  background: #ffebee;
+}
   color:#222;
   text-decoration:none;
   font-size: 14px;

@@ -22,6 +22,7 @@
   },
   "navigation": {
     "home": "Company View",
+    "login": "Login",
     "persons": "Contacts Registry",
     "newPerson": "New Contact",
     "editPerson": "Edit Contact",
