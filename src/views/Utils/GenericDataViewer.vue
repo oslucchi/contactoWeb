@@ -66,7 +66,7 @@
       <!-- table container: use tableHeight prop for an explicit container height -->
       <div class="masterdata-table-container" :style="{ height: tableHeight + 'px', padding: '2px 2px 0 2px' }">
         <div class="masterdata-table-header" ref="headerRef">
-          <table class="masterdata-table" :style="{ minWidth: localTableWidth + 'px' }">
+          <table class="masterdata-table" :style="{ width: localTableWidth + 'px', minWidth: 'unset' }">
             <colgroup>
               <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
                 :style="{ width: (col.width || 120) + 'px' }" />
@@ -93,7 +93,7 @@
 
         <div class="masterdata-tbody-scroll" ref="tbodyScroll" @scroll="syncHeaderScroll"
           :style="{ height: bodyHeight + 'px' }">
-          <table class="masterdata-table" :style="{ minWidth: localTableWidth + 'px' }">
+          <table class="masterdata-table" :style="{ width: localTableWidth + 'px', minWidth: 'unset' }">
             <colgroup>
               <col v-for="col in visibleColumns" :key="col.idColConfigDetail"
                 :style="{ width: (col.width || 120) + 'px' }" />
@@ -1420,6 +1420,11 @@ export default {
         let next = Math.max(minW, Math.min(maxW, startWidth + delta));
         // this.$refs.tbodyScroll.width;
         col.width = Math.round(next);
+        
+        // Immediately recalculate total table width during resize
+        const totalColWidth = this.visibleColumns.reduce((sum, c) => sum + (Number(c.width) || 120), 0);
+        this.localTableWidth = Math.max(totalColWidth, 50);
+        
         if (this.$refs && this.$refs.tbodyScroll) {
           const sb = this.$refs.tbodyScroll.offsetWidth - this.$refs.tbodyScroll.clientWidth;
           if (this.$refs.headerRef) this.$refs.headerRef.style.paddingRight = sb > 0 ? sb + 'px' : '0px';
@@ -1431,7 +1436,16 @@ export default {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         body.style.cursor = oldCursor || '';
-        this.$nextTick(() => { this.calculateTableDimensions(); this.refreshEllipsis(); });
+        
+        // Recalculate total table width after resize
+        const totalColWidth = this.visibleColumns.reduce((sum, col) => sum + (Number(col.width) || 120), 0);
+        this.localTableWidth = Math.max(totalColWidth, 50);
+        
+        this.$nextTick(() => { 
+          this.calculateTableDimensions(); 
+          this.refreshEllipsis(); 
+        });
+        
         // persist updated column config (saveColConfig implemented below)
         console.log('mouse up ')
         if (typeof this.saveColConfig === 'function') this.saveColConfig({ ...col });
@@ -1759,7 +1773,7 @@ export default {
 
 .masterdata-table {
   margin: 0 !important;
-  width: 100% !important;
+  width: 100%;
   min-width: 100%;
   table-layout: fixed;
   box-sizing: border-box;
