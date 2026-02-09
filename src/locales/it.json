@@ -83,7 +83,8 @@
       "date": "Data",
       "title": "Oggetto",
       "summary":"Sommario",
-      "report": "Report"
+      "report": "Report",
+      "recallAction": "Richiamare"
     },
     "forms": {
       "createEvent": "Crea Evento",

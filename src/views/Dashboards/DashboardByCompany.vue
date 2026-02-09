@@ -35,9 +35,11 @@
                         :featuresEnabled="eventFeaturesEnabled"
                         :tableHeight="eventsHeight" 
                         :containerWidth="eventAreaWidth"
+                        :customActions="eventCustomActionsComputed"
                         @rowSelected="onEventSelected"
                         @addItem="onAddEvent"
-                        @deleteItem="onDeleteEvent" />
+                        @deleteItem="onDeleteEvent"
+                        @customAction="handleEventCustomAction" />
                 </section>
             </div>
 
@@ -194,6 +196,18 @@ export default {
             // Entity editor modal state
             showEntityModal: false,
             entityModalConfig: null,
+            
+            // Custom actions for events viewer
+            eventCustomActions: [
+                {
+                    id: 'quickPhoneCall',
+                    icon: 'phoneCall.png',
+                    label: 'Quick Phone Call',
+                    position: 'left',
+                    requiresSelection: false,
+                    enabledWhen: null // Always enabled when company is selected (checked in computed)
+                }
+            ],
         };
     },
     computed: {
@@ -219,6 +233,13 @@ export default {
                 console.log('[reportHighlightCondition] report.idEvent:', report && report.idEvent, 'selectedEventId:', selectedEventId, 'shouldHighlight:', shouldHighlight);
                 return shouldHighlight;
             };
+        },
+        eventCustomActionsComputed() {
+            // Return custom actions with dynamic enabledWhen based on selected company
+            return this.eventCustomActions.map(action => ({
+                ...action,
+                enabledWhen: () => !!this.selectedCompany
+            }));
         }
     },
     mounted() {
@@ -627,6 +648,104 @@ export default {
         onEntityCancel() {
             this.showEntityModal = false;
             this.entityModalConfig = null;
+        },
+
+        handleEventCustomAction(payload) {
+            if (payload.actionId === 'quickPhoneCall') {
+                // Create a quick phone call event
+                this.createQuickPhoneCall();
+            }
+        },
+
+        createQuickPhoneCall() {
+            if (!this.selectedCompany) {
+                alert('Please select a company first');
+                return;
+            }
+
+            // Set date to next hour
+            const now = new Date();
+            now.setMinutes(0);
+            now.setSeconds(0);
+            now.setMilliseconds(0);
+            now.setHours(now.getHours() + 1);
+            const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+            // Get the Event class
+            let EventClass = null;
+            try {
+                const mod = require('@/types/Event');
+                EventClass = (mod && mod.default) ? mod.default : mod;
+            } catch (e) {
+                console.warn('Could not load Event class, using plain object', e);
+            }
+
+            const newEntity = EventClass ? new EventClass() : {};
+            const companyId = this.selectedCompany.idCompany;
+
+            // Set default values for phone call
+            newEntity.idOwner = this.userId;
+            newEntity.idCompany = companyId;
+            newEntity.date = localDateTime;
+            newEntity.duration = 15; // Default 15 minutes
+            newEntity.idEventCategory = 1; // Phone call category
+            newEntity.description = '';
+            newEntity.idEventStatus = 1;
+            newEntity.idEventOutcome = 1;
+            newEntity.title = this.$t('forms.labels.recallAction');
+
+            this.entityModalConfig = {
+                title: `${this.$t('forms.forms.createEvent') || 'Create Event'} - Phone Call`,
+                restModuleName: 'events',
+                viewerRef: 'eventsViewer',
+                entity: newEntity,
+                fieldDefinitions: [
+                    { name: 'idCompany', label: this.$t('forms.labels.company'), type: 'number', editable: false, visible: false },
+                    { name: 'idEventStatus', label: '', type: 'number', editable: false, visible: false, defaultValue: 1 },
+                    { name: 'idEventOutcome', label: '', type: 'number', editable: false, visible: false, defaultValue: 1 },
+                    { name: 'date', label: this.$t('forms.labels.date'), type: 'datetime', editable: true, visible: true },
+                    { name: 'duration', label: this.$t('forms.labels.duration'), type: 'number', editable: true, visible: true },
+                    { name: 'title', label: this.$t('forms.labels.title'), type: 'text', editable: true, visible: true },
+                    { 
+                        name: 'idEventCategory', 
+                        label: this.$t('forms.labels.category'),
+                        type: 'icon-select', 
+                        defaultValue: 1,
+                        options: [
+                            { fileName: 'phoneCall.png', value: 1, label: 'Phone Call' },
+                            { fileName: 'meetInPerson.png', value: 2, label: 'Meet in Person' },
+                            { fileName: 'videoCall.png', value: 3, label: 'Video Call' },
+                            { fileName: 'iconaBianca.png', value: 4, label: this.$t('forms.labels.none') },
+                            { fileName: 'dollar.png', value: 5, label: 'Request for quote' }
+                        ]
+                    },
+                    { name: 'description', label: this.$t('forms.placeholders.description'), type: 'textarea', rows: 4 },
+                    { 
+                        name: 'participants', 
+                        label: this.$t('forms.labels.participants') || 'Participants',
+                        type: 'multi-select-table',
+                        dataSource: {
+                            restModuleName: 'persons',
+                            searchParam: 'searchFor'
+                        },
+                        tableConfig: {
+                            itemIdField: 'idPerson',
+                            displayColumns: [
+                                { colName: 'firstName', label: 'First Name', searchable: true, width: 100 },
+                                { colName: 'familyName', label: 'Last Name', searchable: true, width: 100 },
+                                { colName: 'email', label: 'Email', searchable: true, width: 150 },
+                                { colName: 'company', label: 'Company', searchable: false, width: 120 }
+                            ],
+                            minSearchLength: 3,
+                            maxResults: 15
+                        },
+                        placeholder: 'Type at least 3 characters to search by name or company...',
+                        editable: true,
+                        visible: true
+                    }
+                ]
+            };
+            this.showEntityModal = true;
         },
 
         async onDeleteEvent(payload) {

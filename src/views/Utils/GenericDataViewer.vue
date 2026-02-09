@@ -21,6 +21,17 @@
           @change="onFilterChange"
         />
         
+        <!-- Custom actions - left positioned -->
+        <button 
+          v-for="action in leftCustomActions" 
+          :key="action.id"
+          :disabled="isActionDisabled(action)"
+          :title="action.label || action.id"
+          @click.stop="handleCustomAction(action)"
+        >
+          <img :src="getIconPath(action.icon)" :alt="action.label || action.id" class="icon" />
+        </button>
+        
         <button v-if="featuresEnabled[0]" :disabled="selectedRowId === null" @click.stop="openEditModal">
           <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
         </button>
@@ -37,6 +48,19 @@
 -->
                 <!-- right aligned span -->
         <span v-if="showTitle" class="action-right">{{ showTitle }}</span>
+        
+        <!-- Custom actions - right positioned -->
+        <span v-if="rightCustomActions.length > 0" class="action-right">
+          <button 
+            v-for="action in rightCustomActions" 
+            :key="action.id"
+            :disabled="isActionDisabled(action)"
+            :title="action.label || action.id"
+            @click.stop="handleCustomAction(action)"
+          >
+            <img :src="getIconPath(action.icon)" :alt="action.label || action.id" class="icon" />
+          </button>
+        </span>
       </div>
 
       <!-- table container: use tableHeight prop for an explicit container height -->
@@ -290,13 +314,15 @@ export default {
     filterConfigs: { type: Array, default: () => [] },
     // Function to determine if a row should be highlighted: (item) => boolean
     highlightCondition: { type: Function, default: null },
+    // Array of custom action definitions
+    customActions: { type: Array, default: () => [] },
     // columnsToSearch: { type: Array, default: () => null },
     // searchPlaceholder: { type: String, default: null }
     // _rowHeights:  { type: Array, default: () => [] }, // Store natural row heights
     // _rowHeightLocks: { type: Array, default: () => [] }, // Store row height locks
 
   },
-  emits: ['rowSelected'],
+  emits: ['rowSelected', 'addItem', 'deleteItem', 'customAction'],
   data() {
     return {
       // snapshots of original values for editable cells keyed by "<rowId>::<colName>"
@@ -408,6 +434,14 @@ export default {
       });
       
       return filtered;
+    },
+
+    leftCustomActions() {
+      return this.customActions.filter(action => !action.position || action.position === 'left');
+    },
+
+    rightCustomActions() {
+      return this.customActions.filter(action => action.position === 'right');
     },
     
     sortedItems() {
@@ -1314,6 +1348,50 @@ export default {
         }
       }
       return false;
+    },
+
+    handleCustomAction(action) {
+      this.$emit('customAction', {
+        actionId: action.id,
+        action: action,
+        selectedItem: this.selectedItem,
+        selectedRowId: this.selectedRowId,
+        allItems: this.items,
+        tableConfig: this.tableConfig
+      });
+    },
+
+    isActionDisabled(action) {
+      // Check if action requires a selection
+      if (action.requiresSelection && this.selectedRowId === null) {
+        return true;
+      }
+      
+      // Check custom enabledWhen function
+      if (action.enabledWhen && typeof action.enabledWhen === 'function') {
+        try {
+          return !action.enabledWhen({
+            selectedItem: this.selectedItem,
+            selectedRowId: this.selectedRowId,
+            items: this.items
+          });
+        } catch (e) {
+          console.warn('enabledWhen function failed:', e);
+          return true;
+        }
+      }
+      
+      return false;
+    },
+
+    getIconPath(iconName) {
+      if (!iconName) return '';
+      // If it's already a full path or URL, return as-is
+      if (iconName.startsWith('/') || iconName.startsWith('http')) {
+        return iconName;
+      }
+      // Otherwise, assume it's in assets/icons
+      return require(`@/assets/icons/${iconName}`);
     },
 
     syncHeaderScroll(e) {

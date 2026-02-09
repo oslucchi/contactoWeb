@@ -83,7 +83,8 @@
       "date": "Date",
       "title": "Subject",
       "summary":"Summary",
-      "report": "Report"
+      "report": "Report",
+      "recallAction": "Recall quick action"
     },
     "forms": {
       "createEvent": "Create Event",
