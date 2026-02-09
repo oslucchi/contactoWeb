@@ -4,6 +4,11 @@
     <div class="companies-content">
       <h2>Companies</h2>
       <div class="action-icons">
+        <SearchByString
+          v-model="searchTerm"
+          placeholder="Search companies..."
+          @input="onSearchInput"
+        />
         <button :disabled="selectedRow === null" @click.stop="openEditModal">
           <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
         </button>
@@ -14,62 +19,64 @@
           <img src="@/assets/icons/add.png" alt="Add" class="icon" />
         </button>
       </div>
-      <table class="companies-table" @click.stop>
-        <thead>
-          <tr>
-            <th v-for="col in columns" :key="col.key" :class="col.key" @click.stop="col.sortable && handleSort(col.key)">
-              {{ col.label }}
-              <span v-if="col.sortable && sortColumn === col.key" class="sort-arrow">
-                <span v-if="sortDirection === 'asc'">&#8595;</span>
-                <span v-else-if="sortDirection === 'desc'">&#8593;</span>
-              </span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="(company, rowIdx) in sortedCompanies"
-            :key="company.idCompany"
-            :class="{ 'row-selected': selectedRow === rowIdx }"
-          >
-            <td
-              class="description"
-              :class="{ 'cell-selected': selectedRow === rowIdx && selectedCell === 'name' }"
-              @click="selectCell(rowIdx, 'description')"
+      <div class="table-container">
+        <table class="companies-table" @click.stop>
+          <thead>
+            <tr>
+              <th v-for="col in columns" :key="col.key" :class="col.key" @click.stop="col.sortable && handleSort(col.key)">
+                {{ col.label }}
+                <span v-if="col.sortable && sortColumn === col.key" class="sort-arrow">
+                  <span v-if="sortDirection === 'asc'">&#8595;</span>
+                  <span v-else-if="sortDirection === 'desc'">&#8593;</span>
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(company, rowIdx) in sortedCompanies"
+              :key="company.idCompany"
+              :class="{ 'row-selected': selectedRow === rowIdx }"
             >
-              <input v-model="company.description" @change="saveCompany(company)" type="text" class="table-input" />
-            </td>
-            <td
-              class="segment"
-              :class="{ 'cell-selected': selectedRow === rowIdx && selectedCell === 'segment' }"
-              @click="selectCell(rowIdx, 'segment')"
-            >
-              <template v-if="selectedRow === rowIdx && selectedCell === 'segment'">
-                <select
-                  :value="getSegmentId(company.segment)"
-                  @change="handleSegmentChange(rowIdx, $event)"
-                  class="table-input"
-                >
-                  <option v-for="segment in segments" :key="segment.idSegment" :value="segment.idSegment">
-                    {{ segment.description }}
-                  </option>
-                </select>
-              </template>
-              <template v-else>
-                {{ company.segment }}
-              </template>
-            </td>
-            <td class="branches">
-              <span v-for="(branch, bIdx) in company.branches" :key="bIdx">
-                  <a href="#" @click.stop.prevent="openBranchModal(branch)">
-                    {{ (branch.name1 === "" ? company.description : branch.name1) }} - {{ branch.city }}
-                  </a>
-                  <br>
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <td
+                class="description"
+                :class="{ 'cell-selected': selectedRow === rowIdx && selectedCell === 'name' }"
+                @click="selectCell(rowIdx, 'description')"
+              >
+                <input v-model="company.description" @change="saveCompany(company)" type="text" class="table-input" />
+              </td>
+              <td
+                class="segment"
+                :class="{ 'cell-selected': selectedRow === rowIdx && selectedCell === 'segment' }"
+                @click="selectCell(rowIdx, 'segment')"
+              >
+                <template v-if="selectedRow === rowIdx && selectedCell === 'segment'">
+                  <select
+                    :value="getSegmentId(company.segment)"
+                    @change="handleSegmentChange(rowIdx, $event)"
+                    class="table-input"
+                  >
+                    <option v-for="segment in segments" :key="segment.idSegment" :value="segment.idSegment">
+                      {{ segment.description }}
+                    </option>
+                  </select>
+                </template>
+                <template v-else>
+                  {{ company.segment }}
+                </template>
+              </td>
+              <td class="branches">
+                <span v-for="(branch, bIdx) in company.branches" :key="bIdx">
+                    <a href="#" @click.stop.prevent="openBranchModal(branch)">
+                      {{ (branch.name1 === "" ? company.description : branch.name1) }} - {{ branch.city }}
+                    </a>
+                    <br>
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <!-- Edit Modal Placeholder -->
       <div v-if="showEditModal" class="modal-overlay" @click.stop>
         <div class="modal-content">
@@ -99,8 +106,12 @@ import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import Company from '@/types/Company';
 import LookupData from '@/services/LookupDataInitializer';
+import SearchByString from '@/components/SearchByString.vue';
 
 export default {
+  components: {
+    SearchByString
+  },
   data() {
     return {
       companies: [],
@@ -110,6 +121,7 @@ export default {
       selectedCompany: null,
       showBranchModal: false,
       selectedBranch: null,
+      searchTerm: '',
       sortColumn: null,      // e.g. 'description', 'segment', 'branches'
       sortDirection: null,   // 'asc', 'desc', or null (natural)
       columns: [
@@ -147,12 +159,19 @@ export default {
       }
   },
   created() {
-    axios.get(`${API_BASE_URL}/companies/getBySubstring?searchFor=`).then(res => {
-      // Ensure each company is an instance of Company
-      this.companies = res.data.map(c => c instanceof Company ? c : new Company(c));
-    });
+    this.loadCompanies();
   },
   methods: {
+    loadCompanies() {
+      axios.get(`${API_BASE_URL}/companies/getBySubstring?searchFor=${this.searchTerm}`).then(res => {
+        // Ensure each company is an instance of Company
+        this.companies = res.data.map(c => c instanceof Company ? c : new Company(c));
+      });
+    },
+    onSearchInput(value) {
+      this.searchTerm = value || '';
+      this.loadCompanies();
+    },
     formatDateForInput(dateStr) {
       if (!dateStr) return '';
       return dateStr.slice(0, 10);
@@ -264,11 +283,21 @@ export default {
   max-width: 1200px;
   margin: 0 auto;
   padding-bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+}
+.table-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid #ddd;
+  margin-top: 16px;
 }
 .companies-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 16px;
 }
 .companies-table th, .companies-table td {
   border: 1px solid #888;

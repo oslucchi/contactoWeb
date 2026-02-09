@@ -4,6 +4,11 @@
     <div class="projects-content">
       <h2>Projects</h2>
       <div class="action-icons">
+        <SearchByString
+          v-model="searchTerm"
+          placeholder="Search projects..."
+          @input="onSearchInput"
+        />
         <button :disabled="selectedRow === null" @click.stop="openEditModal">
           <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
         </button>
@@ -14,7 +19,8 @@
           <img src="@/assets/icons/add.png" alt="Add" class="icon" />
         </button>
       </div>
-      <table class="projects-table" @click.stop>
+      <div class="table-container">
+        <table class="projects-table" @click.stop>
         <thead>
           <tr>
             <th>Customer</th>
@@ -83,6 +89,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
       <!-- Edit Modal Placeholder -->
       <div v-if="showEditModal" class="modal-overlay" @click.stop>
         <div class="modal-content">
@@ -102,11 +109,13 @@
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import AutocompleteCombo from '@/components/AutocompleteCombo.vue';
+import SearchByString from '@/components/SearchByString.vue';
 import Project from '../../../types/Project';
 
 export default {
   components: {
-    AutocompleteCombo
+    AutocompleteCombo,
+    SearchByString
   },
   data() {
     return {
@@ -115,16 +124,24 @@ export default {
       selectedCell: null,
       showEditModal: false,
       selectedProject: null,
+      searchTerm: '',
     };
   },
   created() {
-    axios.get(`${API_BASE_URL}/projects/getBySubstring?searchFor=`).then(res => {
-      this.projects = res.data;
-      // Optionally fetch company details for each project
-      this.enrichProjectsWithCompanyData();
-    });
+    this.loadProjects();
   },
   methods: {
+    loadProjects() {
+      axios.get(`${API_BASE_URL}/projects/getBySubstring?searchFor=${this.searchTerm}`).then(res => {
+        this.projects = res.data;
+        // Optionally fetch company details for each project
+        this.enrichProjectsWithCompanyData();
+      });
+    },
+    onSearchInput(value) {
+      this.searchTerm = value || '';
+      this.loadProjects();
+    },
     formatDateForInput(dateStr) {
       if (!dateStr) return '';
       return dateStr.slice(0, 10);
@@ -225,11 +242,20 @@ export default {
   max-width: 1200px;
   margin: 0 auto;
   padding-bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+}
+.table-container {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  margin-top: 16px;
 }
 .projects-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 16px;
 }
 .projects-table th, .projects-table td {
   border: 1px solid #888;

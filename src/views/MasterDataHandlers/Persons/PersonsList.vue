@@ -4,6 +4,11 @@
     <div class="persons-content">
       <h2>Persons</h2>
       <div class="action-icons">
+        <SearchByString
+          v-model="searchTerm"
+          placeholder="Search persons..."
+          @input="onSearchInput"
+        />
         <button :disabled="selectedRow === null" @click.stop="openEditModal">
           <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
         </button>
@@ -14,7 +19,8 @@
           <img src="@/assets/icons/add.png" alt="Add" class="icon" />
         </button>
       </div>
-      <table class="persons-table" @click.stop>
+      <div class="table-container">
+        <table class="persons-table" @click.stop>
         <thead>
           <tr>
             <th v-for="col in columns" :key="col.key" :class="col.key" @click.stop="col.sortable && handleSort(col.key)">
@@ -37,32 +43,65 @@
               :class="{ 'cell-selected': selectedRow === rowIdx && selectedCell === 'first-name' }"
               @click="selectCell(rowIdx, 'first-name')"
             >
-              <input v-model="person.firstName" @change="savePerson(person)" type="text" class="table-input" />
+              <input 
+                v-model="person.firstName" 
+                @change="savePerson(person)" 
+                @keydown.tab="handleTab(rowIdx, 'first-name', $event)"
+                type="text" 
+                class="table-input" 
+              />
             </td>
             <td
               class="family-name"
               :class="{ 'cell-selected': selectedRow === rowIdx && selectedCell === 'family-name' }"
               @click="selectCell(rowIdx, 'family-name')"
             >
-              <input v-model="person.familyName" @change="savePerson(person)" type="text" class="table-input" />
+              <input 
+                v-model="person.familyName" 
+                @change="savePerson(person)" 
+                @keydown.tab="handleTab(rowIdx, 'family-name', $event)"
+                type="text" 
+                class="table-input" 
+              />
             </td>
             <td
               class="company"
               :class="{ 'cell-selected': selectedRow === rowIdx && selectedCell === 'company' }"
               @click="selectCell(rowIdx, 'company')"
             >
-              <input v-model="person.company" @change="savePerson(person)" type="text" class="table-input" />
+              <AutocompleteCombo
+                v-if="selectedRow === rowIdx && selectedCell === 'company'"
+                ref="companyCombo"
+                v-model="person.companyObj"
+                table="Companies"
+                :searchColumns="['description']"
+                :displayColumns="['description']"
+                idField="idCompany"
+                labelField="description"
+                placeholder="Type company name..."
+                @select="onCompanySelect(person, $event)"
+                @keydown.tab.native="handleTab(rowIdx, 'company', $event)"
+                @blur.native="clearSelection"
+              />
+              <span v-else>{{ getCompanyName(person) }}</span>
             </td>
             <td
               class="email"
               :class="{ 'cell-selected': selectedRow === rowIdx && selectedCell === 'email' }"
               @click="selectCell(rowIdx, 'email')"
             >
-              <input v-model="person.email" @change="savePerson(person)" type="email" class="table-input" />
+              <input 
+                v-model="person.email" 
+                @change="savePerson(person)" 
+                @keydown.tab="handleTab(rowIdx, 'email', $event)"
+                type="email" 
+                class="table-input" 
+              />
             </td>
           </tr>
         </tbody>
       </table>
+      </div>
       <!-- Edit Modal Placeholder -->
       <div v-if="showEditModal" class="modal-overlay" @click.stop>
         <div class="modal-content">
@@ -81,8 +120,14 @@
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import Person from '@/types/Person';
+import SearchByString from '@/components/SearchByString.vue';
+import AutocompleteCombo from '@/components/AutocompleteCombo.vue';
 
 export default {
+  components: {
+    SearchByString,
+    AutocompleteCombo
+  },
   data() {
     return {
       persons: [],
@@ -90,6 +135,7 @@ export default {
       selectedCell: null,
       showEditModal: false,
       selectedPerson: null,
+      searchTerm: '',
       sortColumn: null,
       sortDirection: null,
       columns: [
@@ -115,11 +161,19 @@ export default {
     }
   },
   created() {
-    axios.get(`${API_BASE_URL}/persons/getBySubstring?searchFor=`).then(res => {
-      this.persons = res.data;
-    });
+    this.loadPersons();
   },
   methods: {
+    loadPersons() {
+      axios.get(`${API_BASE_URL}/persons/getBySubstring?searchFor=${this.searchTerm}`).then(res => {
+        this.persons = res.data;
+        this.enrichPersonsWithCompanyData();
+      });
+    },
+    onSearchInput(value) {
+      this.searchTerm = value || '';
+      this.loadPersons();
+    },
     savePerson(person) {
       axios.put(`${API_BASE_URL}/persons/${person.idPerson}`, person)
         .catch(() => alert('Error saving person'));
@@ -128,6 +182,17 @@ export default {
       this.selectedRow = rowIdx;
       this.selectedCell = cellName;
       this.selectedPerson = this.persons[rowIdx];
+      
+      // Auto-focus the input when selecting company cell
+      if (cellName === 'company') {
+        this.$nextTick(() => {
+          // Find the autocomplete input in the selected cell
+          const selectedCell = document.querySelector('.cell-selected .autocomplete-input');
+          if (selectedCell) {
+            selectedCell.focus();
+          }
+        });
+      }
     },
     openEditModal() {
       if (this.selectedRow !== null) {
@@ -138,7 +203,7 @@ export default {
     deleteSelectedRow() {
       if (this.selectedRow !== null) {
         const person = this.persons[this.selectedRow];
-        if (confirm(`Delete person ${person.familyName}?`)) {
+        if (confirm(`Delete person ${person.familyName} ${person.firstName} of ${person.company}?`)) {
           axios.delete(`${API_BASE_URL}/persons/${person.idPerson}`).then(() => {
             this.persons.splice(this.selectedRow, 1);
             this.selectedRow = null;
@@ -177,6 +242,76 @@ export default {
         this.sortDirection = 'asc';
       }
     },
+    onCompanySelect(person, companyObj) {
+      person.idCompany = companyObj.idCompany;
+      person.company = companyObj.description;
+      person.companyObj = companyObj;
+      this.savePerson(person);
+    },
+    handleTab(rowIdx, currentCell, event) {
+      event.preventDefault();
+      
+      const cellOrder = ['first-name', 'family-name', 'company', 'email'];
+      const currentIndex = cellOrder.indexOf(currentCell);
+      
+      if (currentIndex < cellOrder.length - 1) {
+        // Move to next cell in same row
+        this.selectedRow = rowIdx;
+        this.selectedCell = cellOrder[currentIndex + 1];
+      } else {
+        // Last cell in row, move to first cell of next row
+        if (rowIdx < this.sortedPersons.length - 1) {
+          this.selectedRow = rowIdx + 1;
+          this.selectedCell = cellOrder[0];
+        } else {
+          // Last cell of last row, deselect
+          this.selectedRow = null;
+          this.selectedCell = null;
+          return;
+        }
+      }
+      
+      // Focus the next input
+      this.$nextTick(() => {
+        const selector = this.selectedCell === 'company' 
+          ? '.cell-selected .autocomplete-input'
+          : '.cell-selected .table-input';
+        const nextInput = document.querySelector(selector);
+        if (nextInput) {
+          nextInput.focus();
+        }
+      });
+    },
+    clearSelection() {
+      // Clear after a short delay to allow selection to complete if needed
+      setTimeout(() => {
+        this.selectedCell = null;
+      }, 150);
+    },
+    getCompanyName(person) {
+      if (person.companyObj && person.companyObj.description) {
+        return person.companyObj.description;
+      }
+      return person.company || '';
+    },
+    async enrichPersonsWithCompanyData() {
+      // Fetch company details for persons that have a company ID
+      const companyIds = [...new Set(this.persons.map(p => p.idCompany).filter(Boolean))];
+      
+      for (const companyId of companyIds) {
+        try {
+          const res = await axios.get(`${API_BASE_URL}/companies/${companyId}`);
+          // Attach company object to all persons with this company ID
+          this.persons.forEach(person => {
+            if (person.idCompany === companyId) {
+              this.$set(person, 'companyObj', res.data);
+            }
+          });
+        } catch (e) {
+          console.error(`Failed to fetch company ${companyId}`, e);
+        }
+      }
+    }
   }
 }
 </script>
@@ -208,11 +343,21 @@ export default {
   max-width: 1200px;
   margin: 0 auto;
   padding-bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+}
+.table-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid #ddd;
+  margin-top: 16px;
 }
 .persons-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 16px;
 }
 .persons-table th, .persons-table td {
   border: 1px solid #888;

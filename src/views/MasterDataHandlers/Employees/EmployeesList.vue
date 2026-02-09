@@ -4,6 +4,11 @@
     <div class="employees-content">
       <h2>{{ $t('navigation.employees') }}</h2>
       <div class="action-icons">
+        <SearchByString
+          v-model="searchTerm"
+          placeholder="Search employees..."
+          @input="onSearchInput"
+        />
         <button :disabled="selectedRow === null" @click.stop="openEditModal">
           <img src="@/assets/icons/pencil.png" alt="Edit" class="icon" />
         </button>
@@ -14,7 +19,8 @@
           <img src="@/assets/icons/add.png" alt="Add" class="icon" />
         </button>
       </div>
-      <table class="employees-table" @click.stop>
+      <div class="table-container">
+        <table class="employees-table" @click.stop>
         <thead>
           <tr>
             <th>{{ $t('forms.placeholders.familyName') }}</th>
@@ -68,6 +74,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
       <!-- Edit Modal Placeholder -->
       <div v-if="showEditModal" class="modal-overlay" @click.stop>
         <div class="modal-content">
@@ -85,8 +92,12 @@
 <script>
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
+import SearchByString from '@/components/SearchByString.vue';
 
 export default {
+  components: {
+    SearchByString
+  },
   data() {
     return {
       employees: [],
@@ -94,14 +105,25 @@ export default {
       selectedCell: null,
       showEditModal: false,
       selectedEmployee: null,
+      searchTerm: '',
     };
   },
   created() {
-    axios.get(`${API_BASE_URL}/employees`).then(res => {
-      this.employees = res.data;
-    });
+    this.loadEmployees();
   },
   methods: {
+    loadEmployees() {
+      const endpoint = this.searchTerm ? 
+        `${API_BASE_URL}/employees/search?searchFor=${this.searchTerm}` : 
+        `${API_BASE_URL}/employees`;
+      axios.get(endpoint).then(res => {
+        this.employees = res.data;
+      });
+    },
+    onSearchInput(value) {
+      this.searchTerm = value || '';
+      this.loadEmployees();
+    },
     async saveEmployee(employee) {
       try {
         await axios.put(`${API_BASE_URL}/employees/${employee.idEmployee}`, employee);
@@ -170,11 +192,20 @@ export default {
   max-width: 1200px;
   margin: 0 auto;
   padding-bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+}
+.table-container {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  margin-top: 16px;
 }
 .employees-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 16px;
 }
 .employees-table th, .employees-table td {
   border: 1px solid #888;
