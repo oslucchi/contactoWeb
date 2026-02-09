@@ -149,6 +149,7 @@ import GenericEntityEditor from '@/views/Utils/GenericEntityEditor.vue';
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import dayjs from 'dayjs';
+import { EVENT_STATUS, EVENT_OUTCOME, EVENT_CATEGORY, DEFAULT_EVENT_DURATION, REPORT_STATUS } from '@/constants';
 
 export default {
     components: { GenericDataViewer, GenericEntityEditor },
@@ -480,10 +481,10 @@ export default {
             newEntity.idCompany = companyId;
             newEntity.date = localDateTime;
             newEntity.duration = null;
-            newEntity.icon = 4;
+            newEntity.icon = EVENT_CATEGORY.NONE;
             newEntity.description = '';
-            newEntity.idEventStatus = 1;
-            newEntity.idEventOutcome = 1;
+            newEntity.idEventStatus = EVENT_STATUS.PENDING;
+            newEntity.idEventOutcome = EVENT_OUTCOME.PENDING;
             newEntity.title = '';
             
             console.log('newEntity after setting defaults:', JSON.stringify(newEntity));
@@ -496,8 +497,8 @@ export default {
                 // Optional: define specific fields for Event
                 fieldDefinitions: [
                     { name: 'idCompany', label: this.$t('forms.labels.company'), type: 'number', placeholder: this.$t('forms.placeholders.companyId'), editable: false, visible: false },
-                    { name: 'idEventStatus', label: '', type: 'number', placeholder: '', editable: false, visible: false, defaultValue: 1 },
-                    { name: 'idEventOutcome', label: '', type: 'number', placeholder: '', editable: false, visible: false, defaultValue: 1 },
+                    { name: 'idEventStatus', label: '', type: 'number', placeholder: '', editable: false, visible: false, defaultValue: EVENT_STATUS.PENDING },
+                    { name: 'idEventOutcome', label: '', type: 'number', placeholder: '', editable: false, visible: false, defaultValue: EVENT_OUTCOME.PENDING },
                     { name: 'date', label: this.$t('forms.labels.date'), type: 'datetime', placeholder: 'Event date', editable: true, visible: true },
                     { name: 'duration', label: this.$t('forms.labels.duration'), type: 'number', placeholder: 'Event date', editable: true, visible: true },
                     { name: 'title', label: this.$t('forms.labels.title'), type: 'text', placeholder: 'Subject', editable: true, visible: true },
@@ -506,13 +507,13 @@ export default {
                         label: this.$t('forms.labels.category'),
                         type: 'icon-select', 
                         placeholder: this.$t('forms.labels.category'),
-                        defaultValue: 4,
+                        defaultValue: EVENT_CATEGORY.NONE,
                         options: [
-                            { fileName: 'iconaBianca.png', value: 4, label: this.$t('forms.labels.none') },
-                            { fileName: 'meetInPerson.png', value: 2, label: 'Meet in Person' },
-                            { fileName: 'dollar.png', value: 5, label: 'Request for quote' },
-                            { fileName: 'phoneCall.png', value: 1, label: 'Phone Call' },
-                            { fileName: 'videoCall.png', value: 3, label: 'Video Call' }
+                            { fileName: 'iconaBianca.png', value: EVENT_CATEGORY.NONE, label: this.$t('forms.labels.none') },
+                            { fileName: 'meetInPerson.png', value: EVENT_CATEGORY.MEET_IN_PERSON, label: 'Meet in Person' },
+                            { fileName: 'dollar.png', value: EVENT_CATEGORY.QUOTE_REQUEST, label: 'Request for quote' },
+                            { fileName: 'phoneCall.png', value: EVENT_CATEGORY.PHONE_CALL, label: 'Phone Call' },
+                            { fileName: 'videoCall.png', value: EVENT_CATEGORY.VIDEO_CALL, label: 'Video Call' }
                         ]
                     },
                     { name: 'description', label: this.$t('forms.placeholders.description'), type: 'textarea', placeholder: this.$t('forms.placeholders.description'), rows: 4 },
@@ -580,7 +581,7 @@ export default {
             newEntity.date = localDateTime;
             newEntity.report = '';
             newEntity.summary = '';
-            newEntity.archived = false;
+            newEntity.archived = REPORT_STATUS.ACTIVE;
             
             console.log('newEntity after setting defaults:', JSON.stringify(newEntity));
             
@@ -687,11 +688,11 @@ export default {
             newEntity.idOwner = this.userId;
             newEntity.idCompany = companyId;
             newEntity.date = localDateTime;
-            newEntity.duration = 15; // Default 15 minutes
-            newEntity.idEventCategory = 1; // Phone call category
+            newEntity.duration = DEFAULT_EVENT_DURATION.PHONE_CALL;
+            newEntity.idEventCategory = EVENT_CATEGORY.PHONE_CALL;
             newEntity.description = '';
-            newEntity.idEventStatus = 1;
-            newEntity.idEventOutcome = 1;
+            newEntity.idEventStatus = EVENT_STATUS.PENDING;
+            newEntity.idEventOutcome = EVENT_OUTCOME.PENDING;
             newEntity.title = this.$t('forms.labels.recallAction');
 
             this.entityModalConfig = {
@@ -701,8 +702,8 @@ export default {
                 entity: newEntity,
                 fieldDefinitions: [
                     { name: 'idCompany', label: this.$t('forms.labels.company'), type: 'number', editable: false, visible: false },
-                    { name: 'idEventStatus', label: '', type: 'number', editable: false, visible: false, defaultValue: 1 },
-                    { name: 'idEventOutcome', label: '', type: 'number', editable: false, visible: false, defaultValue: 1 },
+                    { name: 'idEventStatus', label: '', type: 'number', editable: false, visible: false, defaultValue: EVENT_STATUS.PENDING },
+                    { name: 'idEventOutcome', label: '', type: 'number', editable: false, visible: false, defaultValue: EVENT_OUTCOME.PENDING },
                     { name: 'date', label: this.$t('forms.labels.date'), type: 'datetime', editable: true, visible: true },
                     { name: 'duration', label: this.$t('forms.labels.duration'), type: 'number', editable: true, visible: true },
                     { name: 'title', label: this.$t('forms.labels.title'), type: 'text', editable: true, visible: true },
@@ -710,13 +711,13 @@ export default {
                         name: 'idEventCategory', 
                         label: this.$t('forms.labels.category'),
                         type: 'icon-select', 
-                        defaultValue: 1,
+                        defaultValue: EVENT_CATEGORY.PHONE_CALL,
                         options: [
-                            { fileName: 'phoneCall.png', value: 1, label: 'Phone Call' },
-                            { fileName: 'meetInPerson.png', value: 2, label: 'Meet in Person' },
-                            { fileName: 'videoCall.png', value: 3, label: 'Video Call' },
-                            { fileName: 'iconaBianca.png', value: 4, label: this.$t('forms.labels.none') },
-                            { fileName: 'dollar.png', value: 5, label: 'Request for quote' }
+                            { fileName: 'phoneCall.png', value: EVENT_CATEGORY.PHONE_CALL, label: 'Phone Call' },
+                            { fileName: 'meetInPerson.png', value: EVENT_CATEGORY.MEET_IN_PERSON, label: 'Meet in Person' },
+                            { fileName: 'videoCall.png', value: EVENT_CATEGORY.VIDEO_CALL, label: 'Video Call' },
+                            { fileName: 'iconaBianca.png', value: EVENT_CATEGORY.NONE, label: this.$t('forms.labels.none') },
+                            { fileName: 'dollar.png', value: EVENT_CATEGORY.QUOTE_REQUEST, label: 'Request for quote' }
                         ]
                     },
                     { name: 'description', label: this.$t('forms.placeholders.description'), type: 'textarea', rows: 4 },
