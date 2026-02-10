@@ -204,6 +204,7 @@ import { API_BASE_URL } from '@/config/apiConfig';
 import ColConfigHeader from '@/types/ColConfigHeader';
 import DOMPurify from 'dompurify';
 import GenericCellEditor from '@/views/Utils/GenericCellEditor.vue';
+import { mapGetters } from 'vuex';
 
 
 const _ellipsisThunks = new WeakMap(); // store thunks for elements
@@ -396,6 +397,8 @@ export default {
   },
 
   computed: {
+    ...mapGetters('auth', ['currentUser', 'userId']),
+    
     rootContainerStyle() {
       // Use fluid width but cap it so the viewer never exceeds its parent/cap.
       // const provided = (typeof this.containerWidth === 'number' && this.containerWidth > 0) ? this.containerWidth : Infinity;
@@ -1478,12 +1481,16 @@ export default {
             console.log(`changedAttributes ${changedAttributes}`);
           }
         });
-        col.idUser = this.userId || 0;
+        console.log('DEBUG currentUser:', this.currentUser);
+        console.log('DEBUG userId getter:', this.userId);
+        console.log('DEBUG user prop:', this.user);
+        col.idUser = (this.currentUser && this.currentUser.idUser) || this.userId || 0;
+        console.log('DEBUG col.idUser set to:', col.idUser);
         const payload = {
           column: col,
           changedAttributes: changedAttributes // array of attribute names that actually changed
         };
-        console.log('invoking put');
+        console.log('invoking put with payload:', payload);
         await axios.put(`${API_BASE_URL}/utility/colConfigDetail/${col.idColConfigDetail || 0}`, payload);
 
         // persist locally as well (update existing snapshot)

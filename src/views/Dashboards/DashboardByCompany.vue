@@ -1,11 +1,14 @@
 <template>
     <div class="dashboard-layout">
-        <div class="company-data">
-            <div class="companies-and-events" ref ="companiesAndEvents">
+        <!-- Left Panel (3/4 width) -->
+        <div class="left-panel" ref="leftPanel">
+            <!-- Row 1: Company (2/3) + Events (1/3) - Resizable -->
+            <div class="companies-and-events" ref="companiesAndEvents">
                 <!-- Companies -->
                 <section 
                     ref="companiesSection" 
                     class="dashboard-block companies-block"
+                    :style="{ width: companiesWidth + 'px' }"
                 >
                     <GenericDataViewer 
                         ref="companyViewer" 
@@ -15,16 +18,21 @@
                         :filter="companySearchFilter"
                         :featuresEnabled="[false, false, false, true, true]"
                         :tableHeight="companiesHeight" 
-                        :containerWidth="mainAreaWidth" 
+                        :containerWidth="companiesWidth" 
                         :filter-configs="[
                             { fieldName: 'segment', label: 'Segment' }
                         ]"
                         @rowSelected="onCompanySelected" />
                 </section>
+                
+                <!-- Vertical divider between Company and Events -->
+                <div class="vertical-divider" @pointerdown.prevent="startHorizontalDrag"></div>
+                
                 <!-- Events -->
                 <section 
                     ref="eventsSection" 
                     class="dashboard-block events-block"
+                    :style="{ width: eventsWidth + 'px' }"
                 >
                     <GenericDataViewer 
                         ref="eventsViewer" 
@@ -34,7 +42,7 @@
                         :filter="companyFilter"
                         :featuresEnabled="eventFeaturesEnabled"
                         :tableHeight="eventsHeight" 
-                        :containerWidth="eventAreaWidth"
+                        :containerWidth="eventsWidth"
                         :customActions="eventCustomActionsComputed"
                         @rowSelected="onEventSelected"
                         @addItem="onAddEvent"
@@ -43,10 +51,10 @@
                 </section>
             </div>
 
-            <!-- Divider -->
+            <!-- Horizontal Divider -->
             <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('companiesAndEvents','branchesSection', $event)"></div>
 
-            <!-- Branches -->
+            <!-- Row 2: Branches - Resizable -->
             <section 
                 ref="branchesSection" 
                 class="dashboard-block branches-block"
@@ -60,14 +68,14 @@
                     :filter="companyFilter" 
                     :featuresEnabled="[false, false, false, false, false]"
                     :tableHeight="branchesHeight" 
-                    :containerWidth="mainAreaWidth"
+                    :containerWidth="leftPanelWidth"
                     @rowSelected="onBranchSelected" />
             </section>
 
-            <!-- Divider -->
+            <!-- Horizontal Divider -->
             <div class="divider" ref="divider2" @pointerdown.prevent="startDrag('branchesSection','personsSection', $event)"></div>
 
-            <!-- Persons -->
+            <!-- Row 3: Persons - Resizable -->
             <section 
                 ref="personsSection" 
                 class="dashboard-block persons-block"
@@ -81,18 +89,20 @@
                     :filter="companyFilter" 
                     :featuresEnabled="[false, false, false, true, false]"
                     :tableHeight="personsHeight" 
-                    :containerWidth="mainAreaWidth"
+                    :containerWidth="leftPanelWidth"
                     @rowSelected="onPersonSelected" />
             </section>
         </div>
+        
+        <!-- Right Panel (1/4 width) -->
         <div ref="sidebar" 
-             class="sidebar" 
-             :style="sidebarWidth !== null ? { width: sidebarWidth + 'px' } : {}"
+             class="sidebar"
         >
+            <!-- Reports Section -->
             <section 
-            ref="reportsSection" 
-                     class="dashboard-block reports-block"
-                     :style="{ width: sidebarWidth + 'px', padding: '8px', height: '35%' }"
+                ref="reportsSection" 
+                class="dashboard-block reports-block"
+                :style="{ height: reportsHeight + 'px' }"
             >
                 <GenericDataViewer 
                     ref="reportsViewer" 
@@ -102,31 +112,33 @@
                     :filter="reportFilter"
                     :featuresEnabled="reportFeaturesEnabled"
                     :tableHeight="reportsHeight" 
-                    :containerWidth="eventAreaWidth"
+                    :containerWidth="sidebarWidth"
                     :highlightCondition="reportHighlightCondition"
                     @rowSelected="onReportSelected"
                     @addItem="onAddReport" />
             </section>
+            
+            <!-- Details Section -->
             <section 
                 ref="reportDetails" 
-                class="dashboard-block reports-block"
-                :style="{ width: sidebarWidth + 'px', padding: '8px' }"
+                class="dashboard-block details-block"
             >
-                <div v-if="selectedReport" style="width: 100%; height: 100%;">
-                    <h3 style="color: rgb(114, 173, 69);">Details</h3>
-                    <div v-if="selectedEvent" style="width: 100%; height: 100%;">
-                        <p><strong>Date:</strong> {{ formatDate(selectedEvent.date) || 'N/A' }}</p>
-                        <span style="">
-                            <textarea
-                                v-model="selectedReport.report"
-                                style="font-size:1.2rem; width:100%; height:100%; box-sizing:border-box; overflow:auto; resize:none;"
-                                @blur="onSelectedReportBlur"
-                            ></textarea>
-                        </span>
+                <div v-if="selectedReport" style="width: 100%; height: 100%; display: flex; flex-direction: column;">
+                    <h3 style="color: rgb(114, 173, 69); margin: 0 0 12px 0;">Details</h3>
+                    <div v-if="selectedEvent" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <p style="margin: 0 0 8px 0;"><strong>Date:</strong> {{ formatDate(selectedEvent.date) || 'N/A' }}</p>
+                        <textarea
+                            v-model="selectedReport.report"
+                            style="flex: 1; font-size:1.2rem; width:100%; box-sizing:border-box; overflow:auto; resize:none; min-height: 0;"
+                            @blur="onSelectedReportBlur"
+                        ></textarea>
                     </div>
                     <div v-else>
                         <p>No event selected.</p>
                     </div>
+                </div>
+                <div v-else style="padding: 12px; color: #999;">
+                    <p>Select a report to view details</p>
                 </div>
             </section>
         </div>
@@ -172,17 +184,21 @@ export default {
             branchesHeight: 100,
             personsHeight: 220,
             eventsHeight: 400,
-            reportsHeight: 400,
-            eventAreaWidth: 350,
+            reportsHeight: 300,
+            
+            // Resizable widths
+            companiesWidth: 600,
+            eventsWidth: 300,
+            leftPanelWidth: 900,
+            sidebarWidth: 300,
 
             // drag state
             _dragging: null,
             _pointerId: null,
-            _lastY: null,            // <-- incremental approach
+            _lastY: null,
+            _lastX: null,
             minSectionHeight: 80,
-
-            sidebarWidth: null,
-            mainAreaWidth: 0,
+            minSectionWidth: 200,
 
             showReportModal: false,
             reportDraft: '',
@@ -247,60 +263,50 @@ export default {
         this._boundHandleResize = this.handleResize.bind(this);
         window.addEventListener('resize', this._boundHandleResize);
 
-        // measure initial sizes and observe sidebar for changes
+        // DEBUG: Check Vuex store
+        console.log('DEBUG - Vuex store auth state:', this.$store.state.auth);
+        console.log('DEBUG - Current user from store:', this.$store.getters.currentUser);
+        console.log('DEBUG - UserId from store:', this.$store.getters.userId);
+
+        // Initialize panel widths based on container
         this.$nextTick(() => {
-        this._measureSidebar();
-        // observe sidebar resizing (e.g. CSS changes, responsive)
-        if (window.ResizeObserver && this.$refs && this.$refs.sidebar) {
-            this._sidebarResizeObserver = new ResizeObserver(() => this._measureSidebar());
-            this._sidebarResizeObserver.observe(this.$refs.sidebar);
-        }
-        this.handleResize();
+            this.initializePanelWidths();
+            this.handleResize();
         });
     },
     beforeDestroy() {
         if (this._boundHandleResize) window.removeEventListener('resize', this._boundHandleResize);
         this._removePointerListeners();
         if (this._rafPending) cancelAnimationFrame(this._rafPending);
-        if (this._sidebarResizeObserver) {
-            try { this._sidebarResizeObserver.disconnect(); } catch (e) {}
-            this._sidebarResizeObserver = null;
-        }
     },
     methods: {
-          formatDate(value, format) {
-            if (!value && value !== 0) return 'N/A';
-            try {
-            // dayjs parses ISO / timezone forms; format as "YY/MM/DD HH:mm"
-                const d = dayjs(value);
-                if (!d.isValid()) return 'N/A';
-                    return d.format(format || 'YY/MM/DD HH:mm');
-            } catch (e) {
-               return 'N/A';
-            }
-        },
-
-        handleResize() {
-            // compute mainAreaWidth from the dashboard container width minus sidebar
+        initializePanelWidths() {
             const containerWidth = (this.$el && this.$el.getBoundingClientRect) ? this.$el.getBoundingClientRect().width : window.innerWidth;
-            const sWidth = Number.isFinite(this.sidebarWidth) ? this.sidebarWidth : 0;
-            // small gutter of 10px preserved as before
-            this.mainAreaWidth = Math.max(0, Math.round(containerWidth - sWidth - 10));
+            
+            // Right sidebar = 1/4 of container
+            this.sidebarWidth = Math.round(containerWidth * 0.25);
+            
+            // Left panel = 3/4 of container
+            this.leftPanelWidth = Math.round(containerWidth * 0.75);
+            
+            // Within left panel: Company = 2/3, Events = 1/3
+            this.companiesWidth = Math.round(this.leftPanelWidth * 0.66);
+            this.eventsWidth = Math.round(this.leftPanelWidth * 0.33);
+        },
+        
+        handleResize() {
+            this.initializePanelWidths();
             this.$nextTick(() => this._callChildrenCalc());
         },
-
-        // measure actual sidebar width and also compute eventAreaWidth if needed
-        _measureSidebar() {
-            if (!this.$refs || !this.$refs.sidebar) return;
-            const rect = this.$refs.sidebar.getBoundingClientRect();
-            const w = Math.round(rect.width || 0);
-            // update only if changed to avoid excessive reflows
-            if (this.sidebarWidth !== w) {
-            this.sidebarWidth = w;
-            // eventAreaWidth used by inner GenericDataViewer (if you expose it)
-            this.eventAreaWidth = Math.max(0, w - 16); // keep small padding allowance
-            // trigger a recompute of main area width
-            this.handleResize();
+        
+        formatDate(value, format) {
+            if (!value && value !== 0) return 'N/A';
+            try {
+                const d = dayjs(value);
+                if (!d.isValid()) return 'N/A';
+                return d.format(format || 'YY/MM/DD HH:mm');
+            } catch (e) {
+                return 'N/A';
             }
         },
 
@@ -312,7 +318,7 @@ export default {
             if (id) {
                 this.branchFilter = { idCompany: id, companyId: id };
                 // Load all reports for this company (requires backend endpoint)
-                this.reportFilter = { id: id };
+                this.reportFilter = { idCompany: id };
             } else {
                 this.branchFilter = { id: -1 };
                 this.reportFilter = { id: -1 };
@@ -789,7 +795,7 @@ export default {
             this.showReportModal = true;
         },
 
-        // pointer drag
+        // pointer drag for vertical resizing
         startDrag(targetRefName, shrinkRefName, evt) {
             try {
                 if (evt && evt.currentTarget &&
@@ -800,6 +806,7 @@ export default {
 
             this._pointerId = evt && evt.pointerId ? evt.pointerId : null;
             this._dragging = true;
+            this._dragMode = 'vertical';
             // cache ref names and nodes for the drag operation
             this._stretchTargetName = targetRefName || null;
             this._shrinkTargetName = shrinkRefName || null;
@@ -817,6 +824,32 @@ export default {
 
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'row-resize';
+        },
+        
+        // pointer drag for horizontal resizing (Company/Events split)
+        startHorizontalDrag(evt) {
+            try {
+                if (evt && evt.currentTarget &&
+                    typeof evt.currentTarget.setPointerCapture === 'function') {
+                    evt.currentTarget.setPointerCapture(evt.pointerId);
+                }
+            } catch (e) { /* ignore */ }
+
+            this._pointerId = evt && evt.pointerId ? evt.pointerId : null;
+            this._dragging = true;
+            this._dragMode = 'horizontal';
+            this._lastX = Number(evt && evt.clientX) || 0;
+
+            // bind handlers
+            this._boundPointerMove = this._onPointerMove.bind(this);
+            this._boundPointerUp = this._onPointerUp.bind(this);
+
+            window.addEventListener('pointermove', this._boundPointerMove, { passive: false, capture: true });
+            window.addEventListener('pointerup', this._boundPointerUp, { capture: true });
+            window.addEventListener('pointercancel', this._boundPointerUp, { capture: true });
+
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'col-resize';
         },
 
        _removePointerListeners() {
@@ -846,45 +879,66 @@ export default {
             if (this._pointerId !== null && evt && evt.pointerId !== this._pointerId) return;
             if (evt) evt.preventDefault();
 
-            const clientY = (evt && evt.clientY) ? Number(evt.clientY) : NaN;
-            if (!isFinite(clientY)) return;
-            let dy = clientY - Number(this._lastY || 0);
-            this._lastY = clientY;
-            if (!isFinite(dy) || dy === 0) return;
+            if (this._dragMode === 'horizontal') {
+                // Horizontal drag - resize Company/Events split
+                const clientX = (evt && evt.clientX) ? Number(evt.clientX) : NaN;
+                if (!isFinite(clientX)) return;
+                let dx = clientX - Number(this._lastX || 0);
+                this._lastX = clientX;
+                if (!isFinite(dx) || dx === 0) return;
 
-            const minH = Number(this.minSectionHeight) || 0;
-            const topEl = this._stretchTarget;
-            const bottomEl = this._shrinkTarget;
-            if (topEl && bottomEl) {
-                const currTop = topEl.getBoundingClientRect().height;
-                const currBottom = bottomEl.getBoundingClientRect().height;
-                const newTop = Math.max(minH, Math.round(currTop + dy));
-                const newBottom = Math.max(minH, Math.round(currBottom - dy));
+                const minW = Number(this.minSectionWidth) || 200;
+                const newCompaniesWidth = Math.max(minW, this.companiesWidth + dx);
+                const newEventsWidth = Math.max(minW, this.eventsWidth - dx);
 
-                topEl.style.height = newTop + 'px';
-                bottomEl.style.height = newBottom + 'px';
-
-                // update stored numeric heights used by children (measure actual sections if present)
-                // if we changed top container, measure its children; otherwise update the two refs directly
-                if (this._stretchTargetName === 'companiesAndEvents') {
-                    const compRef = this.$refs.companiesSection;
-                    const eventsRef = this.$refs.eventsSection;
-                    if (compRef) this.companiesHeight = Math.round(compRef.getBoundingClientRect().height);
-                    if (eventsRef) this.eventsHeight = Math.round(eventsRef.getBoundingClientRect().height);
-                    if (bottomEl === this.$refs.branchesSection) this.branchesHeight = Math.round(newBottom);
-                } else {
-                    // generic mapping for named refs to data fields
-                    if (this._stretchTargetName === 'branchesSection') this.branchesHeight = Math.round(newTop);
-                    if (this._shrinkTargetName === 'personsSection') this.personsHeight = Math.round(newBottom);
+                // Only update if both panels meet minimum width
+                if (newCompaniesWidth >= minW && newEventsWidth >= minW) {
+                    this.companiesWidth = Math.round(newCompaniesWidth);
+                    this.eventsWidth = Math.round(newEventsWidth);
+                    this.$nextTick(() => this._callChildrenCalc());
                 }
-            }
+            } else {
+                // Vertical drag - resize sections vertically
+                const clientY = (evt && evt.clientY) ? Number(evt.clientY) : NaN;
+                if (!isFinite(clientY)) return;
+                let dy = clientY - Number(this._lastY || 0);
+                this._lastY = clientY;
+                if (!isFinite(dy) || dy === 0) return;
 
-            this._callChildrenCalc();
+                const minH = Number(this.minSectionHeight) || 0;
+                const topEl = this._stretchTarget;
+                const bottomEl = this._shrinkTarget;
+                if (topEl && bottomEl) {
+                    const currTop = topEl.getBoundingClientRect().height;
+                    const currBottom = bottomEl.getBoundingClientRect().height;
+                    const newTop = Math.max(minH, Math.round(currTop + dy));
+                    const newBottom = Math.max(minH, Math.round(currBottom - dy));
+
+                    topEl.style.height = newTop + 'px';
+                    bottomEl.style.height = newBottom + 'px';
+
+                    // update stored numeric heights used by children
+                    if (this._stretchTargetName === 'companiesAndEvents') {
+                        const compRef = this.$refs.companiesSection;
+                        const eventsRef = this.$refs.eventsSection;
+                        if (compRef) this.companiesHeight = Math.round(compRef.getBoundingClientRect().height);
+                        if (eventsRef) this.eventsHeight = Math.round(eventsRef.getBoundingClientRect().height);
+                        if (bottomEl === this.$refs.branchesSection) this.branchesHeight = Math.round(newBottom);
+                    } else {
+                        // generic mapping for named refs to data fields
+                        if (this._stretchTargetName === 'branchesSection') this.branchesHeight = Math.round(newTop);
+                        if (this._shrinkTargetName === 'personsSection') this.personsHeight = Math.round(newBottom);
+                    }
+                }
+
+                this._callChildrenCalc();
+            }
         },
 
         _onPointerUp(evt) {
             if (this._pointerId !== null && evt && evt.pointerId !== undefined && evt.pointerId !== this._pointerId) return;
             this._dragging = null;
+            this._dragMode = null;
             // clear cached refs
             this._stretchTargetName = null;
             this._shrinkTargetName = null;
@@ -892,6 +946,7 @@ export default {
             this._shrinkTarget = null;
             this._pointerId = null;
             this._lastY = null;
+            this._lastX = null;
             this._removePointerListeners();
             this.$nextTick(() => this._callChildrenCalc());
         },
@@ -925,99 +980,69 @@ export default {
     box-sizing: border-box;
 }
 
+/* Main layout - horizontal split */
 .dashboard-layout {
     display: flex;
+    flex-direction: row;
+    gap: 0;
     height: calc(100vh - var(--page-header-height, 100px));
     width: 100%;
-    overflow: hidden;
-    align-items: stretch;
-}
-
-.company-data {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px;
-    min-height: 0; /* critical for inner scrolling */
-    min-width: 65%;  /* allow this flex child to shrink and prevent overflow */
-    width: 65%;
-    /* max-width: 1300px; keep previous cap */
-}
-.companies-and-events {
-    display: flex;
-    gap: 8px;
     min-height: 0;
-    height: 100%;
-    width: 100%;
-    align-items: stretch;
+    overflow: hidden;
 }
 
-/* make each top section stretch to container height so changing the container affects them */
-.companies-and-events > section {
-  height: 100%;
-  min-height: 0;
-  box-sizing: border-box;
-}
-
-/* make each section a flexible child and allow inner scroll/ellipsis */
-.companies-block,
-.events-block {
-  flex: 1 1 0;
-  min-height: 0;
-  box-sizing: border-box;
-  padding: 2px
-}
-
-/* right sidebar fixed width */
-.sidebar {
+/* Left panel - 3/4 width, contains Company/Events, Branches, Persons */
+.left-panel {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
+    gap: 0;
+    padding: 8px;
     min-height: 0;
     height: 100%;
-    min-width: 35%;  /* allow this flex child to shrink and prevent overflow */
-    width: 35%;
-    box-sizing: border-box;
-    border-left: 1px solid rgba(0,0,0,0.04); /* subtle separator if desired */
-    background: transparent;
+    overflow: hidden;
 }
 
-.dashboard-block {
-    min-height: 0;
-    box-sizing: border-box;
-    /* allow inner viewer to show its own scrollbars — don't create section scrollbars */
-    overflow: visible;
-
-}
-
-.companies-block {
-    min-height: 160px;
-}
-
-.branches-block {
-    min-height: 120px;
-}
-
-.persons-block {
-    min-height: 120px;
-}
-
-.reports-block {
-    height: 100%;
-    flex: 1 1 auto;
+/* Top row in left panel - Company and Events side by side */
+.companies-and-events {
     display: flex;
-    flex-direction: column;
-    /* min-height: 200px; */
+    flex-direction: row;
+    gap: 0;
+    min-height: 200px;
+    height: 400px;
+    width: 100%;
+    overflow: hidden;
 }
-.reports-block textarea {
-  height: 100% !important;
-  min-height: 0;
-  resize: none !important;
-  box-sizing: border-box;
-  overflow: auto;
-  display: block;
+
+/* Company and Events blocks */
+.companies-block,
+.events-block {
+    flex: 0 0 auto;
+    min-height: 0;
+    height: 100%;
+    padding: 4px;
+    overflow: hidden;
 }
+
+/* Vertical divider between Company and Events */
+.vertical-divider {
+    width: 8px;
+    cursor: col-resize;
+    display: block;
+    margin: 0;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.02), rgba(255, 255, 255, 0.02));
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    touch-action: none;
+    z-index: 5;
+    flex-shrink: 0;
+}
+
+.vertical-divider:hover {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+/* Horizontal divider for vertical resizing */
 .divider {
     height: 8px;
     cursor: row-resize;
@@ -1028,10 +1053,64 @@ export default {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     touch-action: none;
     z-index: 5;
+    flex-shrink: 0;
 }
 
 .divider:hover {
-    background: rgba(0, 0, 0, 0.04);
+    background: rgba(0, 0, 0, 0.08);
+}
+
+/* Branches and Persons blocks */
+.branches-block,
+.persons-block {
+    flex: 0 0 auto;
+    min-height: 80px;
+    padding: 4px;
+    overflow: hidden;
+}
+
+/* Right sidebar - 1/4 width */
+.sidebar {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-height: 0;
+    height: 100%;
+    border-left: 2px solid rgba(0,0,0,0.08);
+    background: #fafafa;
+    overflow: hidden;
+}
+
+/* Reports and Details sections in sidebar */
+.reports-block {
+    flex: 0 0 auto;
+    min-height: 150px;
+    padding: 8px;
+    overflow: hidden;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+.details-block {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 8px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.details-block textarea {
+    flex: 1;
+    min-height: 0;
+    resize: none !important;
+    overflow: auto;
+    font-family: inherit;
+}
+
+.dashboard-block {
+    min-height: 0;
+    overflow: visible;
 }
 .modal-overlay {
   position: fixed;
