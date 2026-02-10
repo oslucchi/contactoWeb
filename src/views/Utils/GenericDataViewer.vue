@@ -1481,16 +1481,11 @@ export default {
             console.log(`changedAttributes ${changedAttributes}`);
           }
         });
-        console.log('DEBUG currentUser:', this.currentUser);
-        console.log('DEBUG userId getter:', this.userId);
-        console.log('DEBUG user prop:', this.user);
         col.idUser = (this.currentUser && this.currentUser.idUser) || this.userId || 0;
-        console.log('DEBUG col.idUser set to:', col.idUser);
         const payload = {
           column: col,
           changedAttributes: changedAttributes // array of attribute names that actually changed
         };
-        console.log('invoking put with payload:', payload);
         await axios.put(`${API_BASE_URL}/utility/colConfigDetail/${col.idColConfigDetail || 0}`, payload);
 
         // persist locally as well (update existing snapshot)

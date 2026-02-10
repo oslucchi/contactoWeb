@@ -263,11 +263,6 @@ export default {
         this._boundHandleResize = this.handleResize.bind(this);
         window.addEventListener('resize', this._boundHandleResize);
 
-        // DEBUG: Check Vuex store
-        console.log('DEBUG - Vuex store auth state:', this.$store.state.auth);
-        console.log('DEBUG - Current user from store:', this.$store.getters.currentUser);
-        console.log('DEBUG - UserId from store:', this.$store.getters.userId);
-
         // Initialize panel widths based on container
         this.$nextTick(() => {
             this.initializePanelWidths();
