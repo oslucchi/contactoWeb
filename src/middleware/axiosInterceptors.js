@@ -47,22 +47,41 @@ axios.interceptors.response.use(
     const originalRequest = error.config;
     
     // Handle 401 Unauthorized
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+    if (error.response && error.response.status === 401) {
+      console.error('[Auth Interceptor] 401 Unauthorized:', originalRequest.url);
       
-      try {
-        // Try to refresh the token
-        await store.dispatch('auth/refreshAccessToken');
-        const newToken = store.getters['auth/accessToken'];
+      // Don't retry login/refresh endpoints
+      if (originalRequest.url.includes('/auth/login') || 
+          originalRequest.url.includes('/auth/refresh-token')) {
+        return Promise.reject(error);
+      }
+      
+      if (!originalRequest._retry) {
+        originalRequest._retry = true;
         
-        // Retry the original request with new token
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
-        return axios(originalRequest);
-      } catch (refreshError) {
-        // Refresh failed - logout and redirect to login
+        try {
+          console.log('[Auth Interceptor] Attempting token refresh...');
+          // Try to refresh the token
+          await store.dispatch('auth/refreshAccessToken');
+          const newToken = store.getters['auth/accessToken'];
+          
+          // Retry the original request with new token
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          console.log('[Auth Interceptor] Retrying request with new token');
+          return axios(originalRequest);
+        } catch (refreshError) {
+          console.error('[Auth Interceptor] Token refresh failed, redirecting to login');
+          // Refresh failed - logout and redirect to login
+          await store.dispatch('auth/logout');
+          router.push({ name: 'Login', query: { redirect: router.currentRoute.fullPath } });
+          return Promise.reject(refreshError);
+        }
+      } else {
+        // Already retried once, logout
+        console.error('[Auth Interceptor] Retry failed, logging out');
         await store.dispatch('auth/logout');
-        router.push({ name: 'Login', query: { redirect: router.currentRoute.fullPath } });
-        return Promise.reject(refreshError);
+        router.push({ name: 'Login' });
+        return Promise.reject(error);
       }
     }
     

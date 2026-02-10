@@ -13,12 +13,15 @@ Vue.config.productionTip = false;
 setI18nInstance(i18n);
 setupAxiosInterceptor();
 
-new Vue({
-  router,
-  store,
-  i18n,
-  created() {
-    LookupData.initialize();
-  },
-  render: h => h(App),
-}).$mount('#app');
+// Restore authentication session before mounting app
+store.dispatch('auth/restoreSession').then(() => {
+  new Vue({
+    router,
+    store,
+    i18n,
+    created() {
+      LookupData.initialize();
+    },
+    render: h => h(App),
+  }).$mount('#app');
+});
