@@ -397,7 +397,7 @@ export default {
   },
 
   computed: {
-    ...mapGetters('auth', ['currentUser', 'userId']),
+    ...mapGetters('auth', ['currentUser']),
     
     rootContainerStyle() {
       // Use fluid width but cap it so the viewer never exceeds its parent/cap.
@@ -481,7 +481,7 @@ export default {
   async created() {
     try {
       const configRes = await axios.get(`${API_BASE_URL}/utility/browserData`, {
-        params: { page: this.page, element: this.element, user: this.user }
+        params: { page: this.page, element: this.element, user: this.currentUser && this.currentUser.idUser }
       });
       const cfg = configRes && configRes.data ? configRes.data : null;
       if (!cfg || (cfg.columns && !Array.isArray(cfg.columns))) {
@@ -1462,7 +1462,7 @@ export default {
     async saveColConfig(col) {
       try {
         // compute changed fields by comparing with persisted per-user config (if any)
-        const key = `colConfig:${this.element}:user:${this.user || '0'}`;
+        const key = `colConfig:${this.element}:user:${(this.currentUser && this.currentUser.idUser) || '0'}`;
         const existingRaw = localStorage.getItem(key);
         const existing = existingRaw ? JSON.parse(existingRaw || '{}') : {};
         const prev = existing[col.colName] || {};
@@ -1481,7 +1481,7 @@ export default {
             console.log(`changedAttributes ${changedAttributes}`);
           }
         });
-        col.idUser = (this.currentUser && this.currentUser.idUser) || this.userId || 0;
+        col.idUser = (this.currentUser && this.currentUser.idUser) || 0;
         const payload = {
           column: col,
           changedAttributes: changedAttributes // array of attribute names that actually changed
@@ -1497,7 +1497,7 @@ export default {
       } catch (err) {
         // fallback: localStorage per-user & table (also emit changedFields)
         try {
-          const key = `colConfig:${this.element}:user:${this.user || '0'}`;
+          const key = `colConfig:${this.element}:user:${(this.currentUser && this.currentUser.idUser) || '0'}`;
           const existingRaw = localStorage.getItem(key);
           const existing = existingRaw ? JSON.parse(existingRaw || '{}') : {};
           existing[col.colName] = { width: col.width, savedAt: Date.now(), ...col };

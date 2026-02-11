@@ -12,7 +12,7 @@
                     ref="projectViewer" 
                     page="dashboardProjects" 
                     element="Project" 
-                    :user="userId"
+                    :user="currentUser && currentUser.idUser"
                     :filter="projectSearchFilter"
                     :featuresEnabled="[false, false, false, true, true]"
                     :tableHeight="projectsHeight" 
@@ -40,7 +40,7 @@
                     ref="companyViewer" 
                     page="dashboardProjects" 
                     element="Company" 
-                    :user="userId"
+                    :user="currentUser && currentUser.idUser"
                     :filter="companySearchFilter"
                     :featuresEnabled="[false, false, false, true, true]"
                     :tableHeight="projectsHeight" 
@@ -55,7 +55,7 @@
                     ref="personViewer" 
                     page="dashboardProjects" 
                     element="Person" 
-                    :user="userId"
+                    :user="currentUser && currentUser.idUser"
                     :filter="personSearchFilter" 
                     :featuresEnabled="[false, false, false, true, false]"
                     :tableHeight="projectsHeight" 
@@ -72,7 +72,7 @@
                     ref="eventsViewer" 
                     page="dashboardProjects" 
                     element="Event" 
-                    :user="userId"
+                    :user="currentUser && currentUser.idUser"
                     :filter="eventsFilter"
                     :featuresEnabled="[false, false, false, true, true]"
                     :tableHeight="eventsHeight" 
@@ -88,7 +88,7 @@
                     ref="reportsViewer" 
                     page="dashboardProjects" 
                     element="Report" 
-                    :user="userId"
+                    :user="currentUser && currentUser.idUser"
                     :filter="reportsFilter"
                     :featuresEnabled="[false, false, false, false, false]"
                     :tableHeight="eventsHeight" 
@@ -115,6 +115,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import dayjs from 'dayjs';
 import i18n from '@/locales'; // <-- import the i18n instance you exported
+import { mapGetters } from 'vuex';
 
 
 export default {
@@ -136,8 +137,6 @@ export default {
             selectedProject: null,
             selectedCompany: null,
 
-            userId: 1,
-
             projectsHeight: 400,
             eventsHeight: 400,
 
@@ -157,6 +156,7 @@ export default {
     },
 
     computed: {
+        ...mapGetters('auth', ['currentUser']),
         // use this.$t if vue-i18n was injected into Vue root, otherwise call the imported instance
         projectPlaceholder() {
             return (typeof this.$t === 'function')

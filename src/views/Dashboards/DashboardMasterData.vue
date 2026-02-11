@@ -9,7 +9,7 @@
                     ref="masterDataTable" 
                     page="masterDataDashboard" 
                     :element="element" 
-                    :user="userId"
+                    :user="currentUser && currentUser.idUser"
                     :filter="searchFilter"
                     :featuresEnabled="[true, true, true, true, true]"
                     :tableHeight="tableHeight" 
@@ -25,6 +25,7 @@ import GenericDataViewer from '@/views/Utils/GenericDataViewer.vue';
 import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import dayjs from 'dayjs';
+import { mapGetters } from 'vuex';
 
 export default {
     components: { GenericDataViewer },
@@ -33,13 +34,15 @@ export default {
             element: 'Person',
             searchFilter: { searchFor: '' },
             selectedRecord: null,
-            userId: 1,
 
             tableHeight: 800,
             minSectionHeight: 80,
 
             mainAreaWidth: 1200,
         };
+    },
+    computed: {
+        ...mapGetters('auth', ['currentUser']),
     },
     mounted() {
     },

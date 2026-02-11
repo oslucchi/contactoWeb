@@ -14,7 +14,7 @@
                         ref="companyViewer" 
                         page="dashboard" 
                         element="Company" 
-                        :user="userId"
+                        :user="currentUser && currentUser.idUser"
                         :filter="companySearchFilter"
                         :featuresEnabled="[false, false, false, true, true]"
                         :tableHeight="companiesHeight" 
@@ -38,7 +38,7 @@
                         ref="eventsViewer" 
                         page="dashboard" 
                         element="Event" 
-                        :user="userId"
+                        :user="currentUser && currentUser.idUser"
                         :filter="companyFilter"
                         :featuresEnabled="eventFeaturesEnabled"
                         :tableHeight="eventsHeight" 
@@ -64,7 +64,7 @@
                     ref="branchViewer" 
                     page="dashboard" 
                     element="Branch" 
-                    :user="userId"
+                    :user="currentUser && currentUser.idUser"
                     :filter="companyFilter" 
                     :featuresEnabled="[false, false, false, false, false]"
                     :tableHeight="branchesHeight" 
@@ -85,7 +85,7 @@
                     ref="personViewer" 
                     page="dashboard" 
                     element="Person" 
-                    :user="userId"
+                    :user="currentUser && currentUser.idUser"
                     :filter="companyFilter" 
                     :featuresEnabled="[false, false, false, true, false]"
                     :tableHeight="personsHeight" 
@@ -108,7 +108,7 @@
                     ref="reportsViewer" 
                     page="dashboard" 
                     element="Report" 
-                    :user="userId"
+                    :user="currentUser && currentUser.idUser"
                     :filter="reportFilter"
                     :featuresEnabled="reportFeaturesEnabled"
                     :tableHeight="reportsHeight" 
@@ -162,6 +162,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '@/config/apiConfig';
 import dayjs from 'dayjs';
 import { EVENT_STATUS, EVENT_OUTCOME, EVENT_CATEGORY, DEFAULT_EVENT_DURATION, REPORT_STATUS } from '@/constants';
+import { mapGetters } from 'vuex';
 
 export default {
     components: { GenericDataViewer, GenericEntityEditor },
@@ -170,7 +171,6 @@ export default {
             selectedReportOriginalContent: '',
             companySearchFilter: { searchFor: '' },
 
-            userId: 1,
             selectedCompany: null,
             selectedBranch: null,
             companyFilter: { id: -1 },
@@ -228,6 +228,7 @@ export default {
         };
     },
     computed: {
+        ...mapGetters('auth', ['currentUser']),
         eventFeaturesEnabled() {
             // Enable add feature (index 2) only when a company is selected
             return [false, false, !!this.selectedCompany, true, true];
