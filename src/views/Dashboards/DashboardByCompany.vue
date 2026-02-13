@@ -1,7 +1,7 @@
 <template>
     <div class="dashboard-layout">
         <!-- Left Panel (3/4 width) -->
-        <div class="left-panel" ref="leftPanel">
+        <div class="left-panel" ref="leftPanel" :style="{ width: leftPanelWidth + 'px' }">
             <!-- Row 1: Company (2/3) + Events (1/3) - Resizable -->
             <div class="companies-and-events" ref="companiesAndEvents">
                 <!-- Companies -->
@@ -52,30 +52,9 @@
             </div>
 
             <!-- Horizontal Divider -->
-            <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('companiesAndEvents','branchesSection', $event)"></div>
+            <div class="divider" ref="divider1" @pointerdown.prevent="startDrag('companiesAndEvents','personsSection', $event)"></div>
 
-            <!-- Row 2: Branches - Resizable -->
-            <section 
-                ref="branchesSection" 
-                class="dashboard-block branches-block"
-                :style="{ height: branchesHeight + 'px' }"
-            >
-                <GenericDataViewer 
-                    ref="branchViewer" 
-                    page="dashboard" 
-                    element="Branch" 
-                    :user="currentUser && currentUser.idUser"
-                    :filter="companyFilter" 
-                    :featuresEnabled="[false, false, false, false, false]"
-                    :tableHeight="branchesHeight" 
-                    :containerWidth="leftPanelWidth"
-                    @rowSelected="onBranchSelected" />
-            </section>
-
-            <!-- Horizontal Divider -->
-            <div class="divider" ref="divider2" @pointerdown.prevent="startDrag('branchesSection','personsSection', $event)"></div>
-
-            <!-- Row 3: Persons - Resizable -->
+            <!-- Row 2: Persons - Resizable -->
             <section 
                 ref="personsSection" 
                 class="dashboard-block persons-block"
@@ -92,11 +71,36 @@
                     :containerWidth="leftPanelWidth"
                     @rowSelected="onPersonSelected" />
             </section>
+
+            <!-- Horizontal Divider -->
+            <div class="divider" ref="divider2" @pointerdown.prevent="startDrag('personsSection','branchesSection', $event)"></div>
+
+            <!-- Row 3: Branches - Resizable -->
+            <section 
+                ref="branchesSection" 
+                class="dashboard-block branches-block"
+                :style="{ height: branchesHeight + 'px' }"
+            >
+                <GenericDataViewer 
+                    ref="branchViewer" 
+                    page="dashboard" 
+                    element="Branch" 
+                    :user="currentUser && currentUser.idUser"
+                    :filter="companyFilter" 
+                    :featuresEnabled="[false, false, false, false, false]"
+                    :tableHeight="branchesHeight" 
+                    :containerWidth="leftPanelWidth"
+                    @rowSelected="onBranchSelected" />
+            </section>
         </div>
+        
+        <!-- Vertical divider between Left Panel and Sidebar -->
+        <div class="vertical-divider" @pointerdown.prevent="startVerticalPanelDrag"></div>
         
         <!-- Right Panel (1/4 width) -->
         <div ref="sidebar" 
              class="sidebar"
+             :style="{ width: sidebarWidth + 'px' }"
         >
             <!-- Reports Section -->
             <section 
@@ -125,16 +129,13 @@
             >
                 <div v-if="selectedReport" style="width: 100%; height: 100%; display: flex; flex-direction: column;">
                     <h3 style="color: rgb(114, 173, 69); margin: 0 0 12px 0;">Details</h3>
-                    <div v-if="selectedEvent" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-                        <p style="margin: 0 0 8px 0;"><strong>Date:</strong> {{ formatDate(selectedEvent.date) || 'N/A' }}</p>
+                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <p style="margin: 0 0 8px 0;"><strong>Date:</strong> {{ formatDate(selectedReport.date) || 'N/A' }}</p>
                         <textarea
                             v-model="selectedReport.report"
                             style="flex: 1; font-size:1.2rem; width:100%; box-sizing:border-box; overflow:auto; resize:none; min-height: 0;"
                             @blur="onSelectedReportBlur"
                         ></textarea>
-                    </div>
-                    <div v-else>
-                        <p>No event selected.</p>
                     </div>
                 </div>
                 <div v-else style="padding: 12px; color: #999;">
@@ -313,8 +314,8 @@ export default {
 
             if (id) {
                 this.branchFilter = { idCompany: id, companyId: id };
-                // Load all reports for this company (requires backend endpoint)
-                this.reportFilter = { idCompany: id };
+                // Load all reports for this company - use 'id' param as backend expects
+                this.reportFilter = { id: id };
             } else {
                 this.branchFilter = { id: -1 };
                 this.reportFilter = { id: -1 };
@@ -847,6 +848,32 @@ export default {
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'col-resize';
         },
+        
+        // Drag between left panel and sidebar
+        startVerticalPanelDrag(evt) {
+            try {
+                if (evt && evt.currentTarget &&
+                    typeof evt.currentTarget.setPointerCapture === 'function') {
+                    evt.currentTarget.setPointerCapture(evt.pointerId);
+                }
+            } catch (e) { /* ignore */ }
+
+            this._pointerId = evt && evt.pointerId ? evt.pointerId : null;
+            this._dragging = true;
+            this._dragMode = 'panel-horizontal';
+            this._lastX = Number(evt && evt.clientX) || 0;
+
+            // bind handlers
+            this._boundPointerMove = this._onPointerMove.bind(this);
+            this._boundPointerUp = this._onPointerUp.bind(this);
+
+            window.addEventListener('pointermove', this._boundPointerMove, { passive: false, capture: true });
+            window.addEventListener('pointerup', this._boundPointerUp, { capture: true });
+            window.addEventListener('pointercancel', this._boundPointerUp, { capture: true });
+
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'col-resize';
+        },
 
        _removePointerListeners() {
             if (this._boundPointerMove) {
@@ -891,6 +918,46 @@ export default {
                 if (newCompaniesWidth >= minW && newEventsWidth >= minW) {
                     this.companiesWidth = Math.round(newCompaniesWidth);
                     this.eventsWidth = Math.round(newEventsWidth);
+                    
+                    // Update left panel width to match the total
+                    const dividerWidth = 8;
+                    this.leftPanelWidth = this.companiesWidth + this.eventsWidth + dividerWidth;
+                    
+                    this.$nextTick(() => this._callChildrenCalc());
+                }
+            } else if (this._dragMode === 'panel-horizontal') {
+                // Panel horizontal drag - resize left-panel vs sidebar
+                const clientX = (evt && evt.clientX) ? Number(evt.clientX) : NaN;
+                if (!isFinite(clientX)) return;
+                let dx = clientX - Number(this._lastX || 0);
+                this._lastX = clientX;
+                if (!isFinite(dx) || dx === 0) return;
+
+                const minW = Number(this.minSectionWidth) || 200;
+                const newLeftPanelWidth = Math.max(minW, this.leftPanelWidth + dx);
+                const newSidebarWidth = Math.max(minW, this.sidebarWidth - dx);
+
+                // Only update if both panels meet minimum width
+                if (newLeftPanelWidth >= minW && newSidebarWidth >= minW) {
+                    // Calculate ratio to maintain the companies/events split proportionally
+                    const oldLeftWidth = this.leftPanelWidth;
+                    const ratio = newLeftPanelWidth / oldLeftWidth;
+                    
+                    this.leftPanelWidth = Math.round(newLeftPanelWidth);
+                    this.sidebarWidth = Math.round(newSidebarWidth);
+                    
+                    // Adjust companies and events widths proportionally
+                    // Subtract divider width (8px) from available space
+                    const dividerWidth = 8;
+                    const availableWidth = this.leftPanelWidth - dividerWidth;
+                    const currentTotal = this.companiesWidth + this.eventsWidth;
+                    
+                    if (currentTotal > 0) {
+                        const companiesRatio = this.companiesWidth / currentTotal;
+                        this.companiesWidth = Math.round(availableWidth * companiesRatio);
+                        this.eventsWidth = Math.round(availableWidth * (1 - companiesRatio));
+                    }
+                    
                     this.$nextTick(() => this._callChildrenCalc());
                 }
             } else {
@@ -952,14 +1019,17 @@ export default {
                 if (this.$refs.companyViewer && typeof this.$refs.companyViewer.calculateTableDimensions === 'function') {
                     this.$refs.companyViewer.calculateTableDimensions();
                 }
+                if (this.$refs.eventsViewer && typeof this.$refs.eventsViewer.calculateTableDimensions === 'function') {
+                    this.$refs.eventsViewer.calculateTableDimensions();
+                }
                 if (this.$refs.branchViewer && typeof this.$refs.branchViewer.calculateTableDimensions === 'function') {
                     this.$refs.branchViewer.calculateTableDimensions();
                 }
                 if (this.$refs.personViewer && typeof this.$refs.personViewer.calculateTableDimensions === 'function') {
                     this.$refs.personViewer.calculateTableDimensions();
                 }
-                if (this.$refs.personViewer && typeof this.$refs.personViewer.reloadData === 'function') {
-                    this.$refs.personViewer.reloadData();
+                if (this.$refs.reportsViewer && typeof this.$refs.reportsViewer.calculateTableDimensions === 'function') {
+                    this.$refs.reportsViewer.calculateTableDimensions();
                 }
             } catch (e) {
                 console.warn('child recalc failed', e);
@@ -1073,8 +1143,7 @@ export default {
     gap: 0;
     min-height: 0;
     height: 100%;
-    border-left: 2px solid rgba(0,0,0,0.08);
-    background: #fafafa;
+    padding: 8px;
     overflow: hidden;
 }
 

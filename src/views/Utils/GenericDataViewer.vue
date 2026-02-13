@@ -1450,8 +1450,18 @@ export default {
         });
         
         // persist updated column config (saveColConfig implemented below)
-        console.log('mouse up ')
-        if (typeof this.saveColConfig === 'function') this.saveColConfig({ ...col });
+        console.log('mouse up - original col object:', col)
+        if (typeof this.saveColConfig === 'function') {
+          // Only send width change on resize - don't send all properties
+          // Explicitly create a new object with ONLY the needed properties
+          const colUpdate = {
+            idColConfigDetail: col.idColConfigDetail,
+            colName: col.colName,
+            width: col.width
+          };
+          console.log('Calling saveColConfig with:', colUpdate);
+          this.saveColConfig(colUpdate);
+        }
       };
 
       document.addEventListener('mousemove', onMove);
@@ -1461,6 +1471,17 @@ export default {
     // persist column config: try server, fallback to localStorage and emit event
     async saveColConfig(col) {
       try {
+        console.log('saveColConfig called for column:', col.colName, 'with data:', col);
+        
+        // CRITICAL: Do not save if we don't have essential column info
+        if (!col.idColConfigDetail || !col.colName) {
+          console.warn('Cannot save column config - missing idColConfigDetail or colName:', col);
+          return;
+        }
+        
+        // Only track changes for specific attributes that should be persisted
+        const persistableAttributes = ['width', 'visible', 'position'];
+        
         // compute changed fields by comparing with persisted per-user config (if any)
         const key = `colConfig:${this.element}:user:${(this.currentUser && this.currentUser.idUser) || '0'}`;
         const existingRaw = localStorage.getItem(key);
@@ -1469,21 +1490,66 @@ export default {
 
         var changedAttributes = "";
         var sep = "";
-        Object.keys(col).forEach(k => {
-          // compare as strings to avoid type differences
-          const a = prev[k] === undefined ? undefined : String(prev[k]);
-          const b = col[k] === undefined ? undefined : String(col[k]);
-          console.log(`checking ${a} vs ${b}`);
-          if (a !== b) {
-            console.log(`changedAttributes ${k}`);
+        persistableAttributes.forEach(k => {
+          // Only check attributes that are actually provided in the col object
+          if (!(k in col)) {
+            console.log(`Skipping ${k}: not in col object`);
+            return;
+          }
+          if (col[k] === undefined || col[k] === null) {
+            console.log(`Skipping ${k}: value is undefined or null`);
+            return; // Skip undefined/null values
+          }
+          
+          // If we've never saved this column before, don't treat unset attributes as changes
+          if (!prev || Object.keys(prev).length === 0) {
+            console.log(`First save for column ${col.colName}, only tracking provided attributes`);
+            // For first save, just add the attribute without comparison
             changedAttributes += sep + k;
             sep = ",";
-            console.log(`changedAttributes ${changedAttributes}`);
+            return;
+          }
+          
+          // compare as strings to avoid type differences
+          const a = prev[k] === undefined ? undefined : String(prev[k]);
+          const b = String(col[k]);
+          console.log(`Comparing ${k}: prev="${a}" vs new="${b}"`);
+          if (a !== b) {
+            console.log(`Change detected for ${k}`);
+            changedAttributes += sep + k;
+            sep = ",";
           }
         });
+        
+        // Only send update if something actually changed
+        if (!changedAttributes) {
+          console.log('No changes to persist for column', col.colName);
+          return;
+        }
+        
+        console.log('Persisting changes:', changedAttributes, 'for column', col.colName);
+        
         col.idUser = (this.currentUser && this.currentUser.idUser) || 0;
+        
+        // CRITICAL: Only send the attributes that are actually provided in col object
+        // Don't send undefined/null attributes as they might be interpreted as 0/false by backend
+        const columnData = {
+          idColConfigDetail: col.idColConfigDetail,
+          idUser: col.idUser,
+          colName: col.colName
+        };
+        
+        // Only add attributes that exist in the col object
+        persistableAttributes.forEach(k => {
+          if (k in col && col[k] !== undefined && col[k] !== null) {
+            columnData[k] = col[k];
+          }
+        });
+        
+        console.log('Column data being sent to backend:', columnData);
+        
         const payload = {
-          column: col,
+          column: columnData,
           changedAttributes: changedAttributes // array of attribute names that actually changed
         };
         await axios.put(`${API_BASE_URL}/utility/colConfigDetail/${col.idColConfigDetail || 0}`, payload);
@@ -1492,9 +1558,10 @@ export default {
         existing[col.colName] = { ...col, savedAt: Date.now() };
         localStorage.setItem(key, JSON.stringify(existing));
 
-        this.$emit('colConfigSaved', { column: col, changedFields, persisted: 'remote' });
+        this.$emit('colConfigSaved', { column: col, changedFields: changedAttributes.split(','), persisted: 'remote' });
         return;
       } catch (err) {
+        console.error('saveColConfig failed:', err);
         // fallback: localStorage per-user & table (also emit changedFields)
         try {
           const key = `colConfig:${this.element}:user:${(this.currentUser && this.currentUser.idUser) || '0'}`;
